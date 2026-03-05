@@ -5,6 +5,7 @@ These tests cover normal loading and error handling.
 
 import pandas as pd
 from pathlib import Path
+import shutil
 
 import pytest
 
@@ -17,7 +18,7 @@ SAMPLE_CSV = Path("StrategyReports_SPY_3426.csv")
 def test_load_csv_success(tmp_path):
     # Use a copy to avoid modifying the original
     temp_file = tmp_path / "sample.csv"
-    SAMPLE_CSV.replace(temp_file)
+    shutil.copy2(SAMPLE_CSV, temp_file)
 
     df = strategy.load_csv(temp_file)
     assert isinstance(df, pd.DataFrame)
