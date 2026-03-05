@@ -1,4 +1,4 @@
-"""Command‑line interface for the stock‑analysis toolkit.
+"""Command-line interface for the stock-analysis toolkit.
 
 The CLI is intentionally small and easy to extend. It delegates the heavy lifting
 to the underlying modules in :pymod:`src.data` and :pymod:`src.analysis`.
