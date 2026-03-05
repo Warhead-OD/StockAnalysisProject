@@ -19,7 +19,13 @@ class _StrategyModule:
     def load_csv(self, path: Path) -> pd.DataFrame:
         global _loaded_strategy
         # The sample CSV uses ';' as separator and has metadata rows before the header.
-        df = pd.read_csv(path, sep=';', skiprows=5, parse_dates=["Date/Time"])
+        df = pd.read_csv(
+            path,
+            sep=";",
+            skiprows=5,
+            parse_dates=["Date/Time"],
+            date_format="%m/%d/%y %I:%M %p",
+        )
         # Normalise column names for tests
         df.rename(columns={"Date/Time": "date", "P/L": "return"}, inplace=True)
         _loaded_strategy = df

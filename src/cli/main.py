@@ -10,8 +10,15 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import data
-from . import analysis
+try:
+    # Package execution: `python -m src.cli.main`
+    from .. import analysis, data
+except ImportError:
+    # Direct script execution: `python src/cli/main.py`
+    project_root = Path(__file__).resolve().parents[2]
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+    from src import analysis, data
 
 __all__ = ["main"]
 

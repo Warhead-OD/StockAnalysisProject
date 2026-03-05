@@ -30,4 +30,3 @@ def test_load_csv_success(tmp_path):
 def test_load_csv_missing_file():
     with pytest.raises(FileNotFoundError):
         strategy.load_csv(Path("nonexistent.csv"))
-
