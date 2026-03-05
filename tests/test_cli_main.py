@@ -1,4 +1,6 @@
-"""Regression tests for CLI command routing and output formatting."""
+"""
+Regression tests for CLI command routing and output formatting.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +16,11 @@ import src.cli.main as cli_main
 
 
 def test_parse_args_load_command() -> None:
+    """
+    Test parsing of 'load' command arguments.
+    Verifies correct command and file path are parsed.
+    """
+
     args = cli_main._parse_args(["load", "--file", "report.csv"])
 
     assert args.command == "load"
@@ -21,6 +28,10 @@ def test_parse_args_load_command() -> None:
 
 
 def test_main_load_calls_strategy_loader(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    """
+    Test that main() calls strategy loader and prints correct output for 'load' command.
+    """
+
     observed: dict[str, Path] = {}
 
     def fake_load_csv(path: Path) -> pd.DataFrame:
@@ -37,6 +48,10 @@ def test_main_load_calls_strategy_loader(monkeypatch: pytest.MonkeyPatch, capsys
 
 
 def test_main_fetch_passes_arguments(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    """
+    Test that main() passes correct arguments to fetch_yfinance and prints output for 'fetch' command.
+    """
+
     observed: dict[str, str | None] = {}
 
     def fake_fetch_yfinance(ticker: str, start: str | None, end: str | None) -> pd.DataFrame:
@@ -55,6 +70,10 @@ def test_main_fetch_passes_arguments(monkeypatch: pytest.MonkeyPatch, capsys: py
 
 
 def test_main_analyze_merges_and_prints_metrics(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    """
+    Test that main() merges strategy and market data and prints metrics for 'analyze' command.
+    """
+
     strategy_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "return": [0.01, -0.02]})
     market_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "adj_close": [100.0, 99.0]})
 
@@ -75,6 +94,10 @@ def test_main_analyze_merges_and_prints_metrics(monkeypatch: pytest.MonkeyPatch,
 
 
 def test_main_unknown_command_exits(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    """
+    Test that main() exits with error for unknown command.
+    """
+
     monkeypatch.setattr(cli_main, "_parse_args", lambda _argv: argparse.Namespace(command="unknown"))
 
     with pytest.raises(SystemExit) as exc:
@@ -86,6 +109,10 @@ def test_main_unknown_command_exits(monkeypatch: pytest.MonkeyPatch, capsys: pyt
 
 
 def test_module_entrypoint_help_runs_without_runtime_warning() -> None:
+    """
+    Test that module entrypoint help runs without runtime warning.
+    """
+
     result = subprocess.run(
         [sys.executable, "-m", "src.cli.main", "fetch", "-h"],
         capture_output=True,
@@ -100,6 +127,10 @@ def test_module_entrypoint_help_runs_without_runtime_warning() -> None:
 
 
 def test_script_entrypoint_help_runs_without_import_errors() -> None:
+    """
+    Test that script entrypoint help runs without import errors.
+    """
+
     result = subprocess.run(
         [sys.executable, "src/cli/main.py", "fetch", "-h"],
         capture_output=True,

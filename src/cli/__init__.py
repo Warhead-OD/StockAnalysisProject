@@ -1,4 +1,6 @@
-"""CLI package entry points."""
+"""
+CLI package entry points.
+"""
 
 from __future__ import annotations
 

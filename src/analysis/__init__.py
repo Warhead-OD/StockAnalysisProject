@@ -1,4 +1,5 @@
-"""Analysis utilities.
+"""
+Analysis utilities.
 
 Currently implements a few basic return‑based metrics.
 """
@@ -9,8 +10,28 @@ import pandas as pd
 
 __all__ = ["metrics"]
 
+
 class _MetricsModule:
+    """
+    Provides methods for computing financial metrics from strategy and market data.
+    """
+
     def compute_all(self, df: pd.DataFrame) -> dict[str, float]:
+        """
+        Compute key financial metrics from a DataFrame.
+
+        Expects columns: "date", "return", "adj_close".
+
+        Args:
+            df (pd.DataFrame): DataFrame containing strategy and market data.
+
+        Returns:
+            dict[str, float]: Dictionary of computed metrics including daily mean return, annualized return, volatility, and Sharpe ratio.
+
+        Raises:
+            ValueError: If the 'return' column is missing.
+        """
+        
         # Expecting df to have columns: "date", "return", "adj_close"
         if "return" not in df.columns:
             raise ValueError("DataFrame must contain a 'return' column for strategy returns")

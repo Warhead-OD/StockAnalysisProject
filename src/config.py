@@ -1,4 +1,5 @@
-"""Configuration and constants.
+"""
+Configuration and constants.
 
 This file can hold API keys, cache directories, default settings, etc.
 """

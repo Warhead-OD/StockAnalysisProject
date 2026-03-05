@@ -1,4 +1,5 @@
-"""Command-line interface for the stock-analysis toolkit.
+"""
+Command-line interface for the stock-analysis toolkit.
 
 The CLI is intentionally small and easy to extend. It delegates the heavy lifting
 to the underlying modules in :pymod:`src.data` and :pymod:`src.analysis`.
@@ -24,6 +25,16 @@ __all__ = ["main"]
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """
+    Parse command-line arguments for the stock analysis CLI.
+
+    Args:
+        argv (list[str] | None): List of command-line arguments.
+
+    Returns:
+        argparse.Namespace: Parsed arguments namespace.
+    """
+
     parser = argparse.ArgumentParser(description="Stock strategy analysis toolkit")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -46,6 +57,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """
+    Main entry point for the CLI. Handles command routing and delegates to appropriate modules.
+
+    Args:
+        argv (list[str] | None): List of command-line arguments.
+    """
+
     args = _parse_args(argv)
 
     if args.command == "load":

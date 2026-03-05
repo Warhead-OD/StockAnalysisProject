@@ -1,4 +1,5 @@
-"""Data loading utilities.
+"""
+Data loading utilities.
 
 This module contains the public API for loading strategy reports and market data.
 """
@@ -16,7 +17,21 @@ __all__ = ["strategy", "market"]
 
 # Strategy sub‑module
 class _StrategyModule:
+    """
+    Provides methods for loading and accessing strategy report data from CSV files.
+    """
+
     def load_csv(self, path: Path) -> pd.DataFrame:
+        """
+        Load a strategy report from a CSV file.
+
+        Args:
+            path (Path): Path to the strategy CSV file.
+
+        Returns:
+            pd.DataFrame: Loaded strategy data with normalized columns.
+        """
+
         global _loaded_strategy
         # The sample CSV uses ';' as separator and has metadata rows before the header.
         df = pd.read_csv(
@@ -32,6 +47,16 @@ class _StrategyModule:
         return df
 
     def get_loaded(self) -> pd.DataFrame:
+        """
+        Get the currently loaded strategy DataFrame.
+
+        Returns:
+            pd.DataFrame: The loaded strategy data.
+
+        Raises:
+            RuntimeError: If no strategy has been loaded yet.
+        """
+
         if _loaded_strategy is None:
             raise RuntimeError("No strategy has been loaded yet")
         return _loaded_strategy

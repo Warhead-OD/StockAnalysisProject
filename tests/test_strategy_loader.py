@@ -1,4 +1,5 @@
-"""Unit tests for strategy CSV loader.
+"""
+Unit tests for strategy CSV loader.
 
 These tests cover normal loading and error handling.
 """
@@ -17,6 +18,11 @@ SAMPLE_CSV = Path("tests/StrategyReports_SPY_3426.csv")
 
 
 def test_load_csv_success(tmp_path):
+    """
+    Test successful loading of a strategy CSV file.
+    Verifies that the DataFrame is not empty and contains expected columns.
+    """
+
     # Use a copy to avoid modifying the original
     temp_file = tmp_path / "sample.csv"
     shutil.copy2(SAMPLE_CSV, temp_file)
@@ -29,11 +35,19 @@ def test_load_csv_success(tmp_path):
 
 
 def test_load_csv_missing_file():
+    """
+    Test loading a missing CSV file raises FileNotFoundError.
+    """
+
     with pytest.raises(FileNotFoundError):
         strategy.load_csv(Path("nonexistent.csv"))
 
 
 def test_fetch_yfinance_raises_on_non_dataframe(monkeypatch):
+    """
+    Test that fetch_yfinance raises RuntimeError when yfinance returns None.
+    """
+
     import yfinance as yf
 
     monkeypatch.setattr(yf, "download", lambda *_args, **_kwargs: None)
@@ -43,6 +57,10 @@ def test_fetch_yfinance_raises_on_non_dataframe(monkeypatch):
 
 
 def test_fetch_yfinance_normalizes_output(monkeypatch):
+    """
+    Test that fetch_yfinance normalizes output DataFrame columns.
+    """
+
     import yfinance as yf
 
     date_index = pd.date_range("2026-01-01", periods=2, freq="D", name="Date")
