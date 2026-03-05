@@ -43,9 +43,11 @@ class _MarketModule:
     def fetch_yfinance(self, ticker: str, start: str | None, end: str | None) -> pd.DataFrame:
         import yfinance as yf
 
-        df = yf.download(ticker, start=start, end=end, progress=False)
-        df.reset_index(inplace=True)
-        df.rename(columns={"Adj Close": "adj_close"}, inplace=True)
+        downloaded = yf.download(ticker, start=start, end=end, progress=False)
+        if not isinstance(downloaded, pd.DataFrame):
+            raise RuntimeError("Failed to download market data")
+
+        df = downloaded.reset_index().rename(columns={"Adj Close": "adj_close"})
         global _loaded_market
         _loaded_market = df
         return df
