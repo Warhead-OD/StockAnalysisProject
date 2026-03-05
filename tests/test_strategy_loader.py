@@ -12,7 +12,7 @@ import pytest
 from src.data import strategy
 
 # Path to the sample CSV provided by the user
-SAMPLE_CSV = Path("StrategyReports_SPY_3426.csv")
+SAMPLE_CSV = Path("tests/StrategyReports_SPY_3426.csv")
 
 
 def test_load_csv_success(tmp_path):
