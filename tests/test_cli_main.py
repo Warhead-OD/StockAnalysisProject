@@ -157,6 +157,13 @@ def test_parse_args_fetch_limit_must_be_positive() -> None:
         cli_main._parse_args(["fetch", "SPY", "--limit", "0"])
 
 
+def test_parse_args_fetch_save_flag() -> None:
+    """Test parsing of --save fetch flag."""
+
+    args = cli_main._parse_args(["fetch", "SPY", "--save"])
+    assert args.save is True
+
+
 def test_main_fetch_default_prints_first_and_last_rows(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -213,6 +220,59 @@ def test_main_fetch_limit_prints_requested_head_rows(
     assert "2026-01-01" in out
     assert "2026-01-02" in out
     assert "2026-01-10" not in out
+
+
+def test_save_fetched_data_replaces_prior_snapshot(tmp_path: Path) -> None:
+    """Test save helper replaces previously saved snapshot files on each run."""
+
+    df_aapl = pd.DataFrame({"date": ["2026-01-01"], "adj_close": [100.0]})
+    df_msft = pd.DataFrame({"date": ["2026-01-02"], "adj_close": [101.0]})
+
+    first_path = cli_main._save_fetched_data(df=df_aapl, ticker="AAPL", output_dir=tmp_path)
+    assert first_path.name == "latest_market_data_AAPL.csv"
+    assert first_path.exists()
+
+    second_path = cli_main._save_fetched_data(df=df_msft, ticker="MSFT", output_dir=tmp_path)
+    assert second_path.name == "latest_market_data_MSFT.csv"
+    assert second_path.exists()
+    assert not first_path.exists()
+
+    saved_files = list(tmp_path.glob("latest_market_data_*.csv"))
+    assert len(saved_files) == 1
+    assert saved_files[0].name == "latest_market_data_MSFT.csv"
+
+
+def test_main_fetch_save_calls_helper(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test --save triggers file-save helper and prints destination."""
+
+    def fake_fetch_yfinance(
+        ticker: str,
+        start: str | None,
+        end: str | None,
+        *,
+        period: str | None,
+        interval: str,
+        auto_adjust: bool,
+        prepost: bool,
+        actions: bool,
+    ) -> pd.DataFrame:
+        return pd.DataFrame({"date": ["2026-01-01"], "adj_close": [100.0]})
+
+    monkeypatch.setattr(cli_main.data.market, "fetch_yfinance", fake_fetch_yfinance)
+    monkeypatch.setattr(
+        cli_main,
+        "_save_fetched_data",
+        lambda df, ticker, output_dir=None: Path("downloads/latest_market_data_AAPL.csv"),
+    )
+
+    cli_main.main(["fetch", "AAPL", "--save"])
+
+    out = capsys.readouterr().out
+    assert "Saved fetched data to" in out
+    assert "latest_market_data_AAPL.csv" in out
 
 
 def test_main_analyze_merges_and_prints_metrics(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:

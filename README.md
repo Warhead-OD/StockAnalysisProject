@@ -53,6 +53,12 @@ Include extended hours and corporate actions:
 python -m src.cli.main fetch MSFT --period 1mo --interval 30m --prepost --actions
 ```
 
+Save fetched data to a CSV snapshot for later strategy development:
+
+```bash
+python -m src.cli.main fetch AAPL --period 1mo --interval 1d --save
+```
+
 #### Fetch Flags
 
 - `ticker` (positional): Ticker symbol, for example `AAPL`
@@ -67,9 +73,11 @@ python -m src.cli.main fetch MSFT --period 1mo --interval 30m --prepost --action
 - `--actions`: Include dividends and split columns
 - `--limit N`: Print only the first `N` rows to console
 - `--all`: Print all rows to console
+- `--save`: Save fetched data to `downloads/latest_market_data_<TICKER>.csv`
 
 Output behavior:
 - If neither `--limit` nor `--all` is provided, the CLI prints the first 3 and last 3 rows.
+- If `--save` is provided, any previous `latest_market_data_*.csv` snapshot is deleted and replaced with the newest fetch output.
 
 Note: `10m` is not currently a native yfinance interval.
 

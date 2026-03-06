@@ -8,6 +8,7 @@ to the underlying modules in :pymod:`src.data` and :pymod:`src.analysis`.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -22,6 +23,25 @@ except ImportError:
     from src import analysis, data
 
 __all__ = ["main"]
+
+FETCH_EXPORT_DIR = Path("downloads")
+FETCH_EXPORT_PREFIX = "latest_market_data"
+
+
+def _save_fetched_data(df, ticker: str, output_dir: Path | None = None) -> Path:
+    """Persist fetched market data and replace previously saved fetch snapshots."""
+
+    target_dir = output_dir or FETCH_EXPORT_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    for existing in target_dir.glob(f"{FETCH_EXPORT_PREFIX}_*.csv"):
+        if existing.is_file():
+            existing.unlink()
+
+    safe_ticker = re.sub(r"[^A-Za-z0-9._-]", "_", ticker.strip().upper())
+    output_path = target_dir / f"{FETCH_EXPORT_PREFIX}_{safe_ticker}.csv"
+    df.to_csv(output_path, index=False)
+    return output_path
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -84,6 +104,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Print all fetched rows",
     )
+    fetch.add_argument(
+        "--save",
+        action="store_true",
+        help="Save fetched data to downloads/latest_market_data_<TICKER>.csv and replace prior saved fetch file",
+    )
 
     # analyze
     analyze = sub.add_parser("analyze", help="Run metrics on a loaded strategy and market data")
@@ -130,6 +155,11 @@ def main(argv: list[str] | None = None) -> None:
             prepost=args.prepost,
             actions=args.actions,
         )
+
+        if args.save:
+            saved_path = _save_fetched_data(df=df, ticker=args.ticker)
+            print(f"Saved fetched data to {saved_path}")
+
         if args.all:
             print(df)
         elif args.limit is not None:
