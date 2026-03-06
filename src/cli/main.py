@@ -8,9 +8,13 @@ to the underlying modules in :pymod:`src.data` and :pymod:`src.analysis`.
 from __future__ import annotations
 
 import argparse
+import random
 import re
 import sys
+import time
 from pathlib import Path
+
+import pandas as pd
 
 try:
     # Package execution: `python -m src.cli.main`
@@ -26,22 +30,49 @@ __all__ = ["main"]
 
 FETCH_EXPORT_DIR = Path("downloads")
 FETCH_EXPORT_PREFIX = "latest_market_data"
+FETCH_DELAY_MIN_SECONDS = 0.3
+FETCH_DELAY_MAX_SECONDS = 0.5
 
 
-def _save_fetched_data(df, ticker: str, output_dir: Path | None = None) -> Path:
-    """Persist fetched market data and replace previously saved fetch snapshots."""
+def _clear_saved_fetch_data(output_dir: Path | None = None) -> None:
+    """Remove previous saved fetch snapshots before a new save run."""
 
     target_dir = output_dir or FETCH_EXPORT_DIR
-    target_dir.mkdir(parents=True, exist_ok=True)
+    if not target_dir.exists():
+        return
 
     for existing in target_dir.glob(f"{FETCH_EXPORT_PREFIX}_*.csv"):
         if existing.is_file():
             existing.unlink()
 
+
+def _save_fetched_data(df: pd.DataFrame, ticker: str, output_dir: Path | None = None) -> Path:
+    """Persist fetched market data for a single ticker."""
+
+    target_dir = output_dir or FETCH_EXPORT_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+
     safe_ticker = re.sub(r"[^A-Za-z0-9._-]", "_", ticker.strip().upper())
     output_path = target_dir / f"{FETCH_EXPORT_PREFIX}_{safe_ticker}.csv"
     df.to_csv(output_path, index=False)
     return output_path
+
+
+def _print_fetch_output(df: pd.DataFrame, args: argparse.Namespace, ticker: str) -> None:
+    """Print fetch results according to the selected output controls."""
+
+    print(f"Ticker: {ticker.upper()}")
+    if args.all:
+        print(df)
+    elif args.limit is not None:
+        print(df.head(args.limit))
+    elif len(df) <= 6:
+        print(df)
+    else:
+        print(f"Fetched {len(df)} rows. Showing first 3 and last 3 rows.")
+        print(df.head(3))
+        print("...")
+        print(df.tail(3))
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -64,7 +95,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     # fetch market data
     fetch = sub.add_parser("fetch", help="Download historical OHLC data from yfinance")
-    fetch.add_argument("ticker", help="Ticker symbol (e.g., AAPL)")
+    fetch.add_argument("tickers", nargs="+", help="One or more ticker symbols (e.g., AAPL MSFT)")
     fetch.add_argument("--start", help="Start date YYYY-MM-DD (date-range mode)")
     fetch.add_argument("--end", help="End date YYYY-MM-DD (requires --start)")
     fetch.add_argument(
@@ -145,32 +176,29 @@ def main(argv: list[str] | None = None) -> None:
         # would persist it in memory or a cache.
 
     elif args.command == "fetch":
-        df = data.market.fetch_yfinance(
-            ticker=args.ticker,
-            start=args.start,
-            end=args.end,
-            period=args.period,
-            interval=args.interval,
-            auto_adjust=args.auto_adjust,
-            prepost=args.prepost,
-            actions=args.actions,
-        )
-
         if args.save:
-            saved_path = _save_fetched_data(df=df, ticker=args.ticker)
-            print(f"Saved fetched data to {saved_path}")
+            _clear_saved_fetch_data()
 
-        if args.all:
-            print(df)
-        elif args.limit is not None:
-            print(df.head(args.limit))
-        elif len(df) <= 6:
-            print(df)
-        else:
-            print(f"Fetched {len(df)} rows. Showing first 3 and last 3 rows.")
-            print(df.head(3))
-            print("...")
-            print(df.tail(3))
+        for index, ticker in enumerate(args.tickers):
+            df = data.market.fetch_yfinance(
+                ticker=ticker,
+                start=args.start,
+                end=args.end,
+                period=args.period,
+                interval=args.interval,
+                auto_adjust=args.auto_adjust,
+                prepost=args.prepost,
+                actions=args.actions,
+            )
+
+            if args.save:
+                saved_path = _save_fetched_data(df=df, ticker=ticker)
+                print(f"Saved fetched data to {saved_path}")
+
+            _print_fetch_output(df=df, args=args, ticker=ticker)
+
+            if index < len(args.tickers) - 1:
+                time.sleep(random.uniform(FETCH_DELAY_MIN_SECONDS, FETCH_DELAY_MAX_SECONDS))
 
     elif args.command == "analyze":
         strategy_df = data.strategy.get_loaded()

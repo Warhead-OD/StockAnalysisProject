@@ -52,7 +52,7 @@ def test_main_fetch_passes_arguments(monkeypatch: pytest.MonkeyPatch, capsys: py
     Test that main() passes correct arguments to fetch_yfinance and prints output for 'fetch' command.
     """
 
-    observed: dict[str, str | bool | None] = {}
+    observed_calls: list[dict[str, str | bool | None]] = []
 
     def fake_fetch_yfinance(
         ticker: str,
@@ -65,17 +65,23 @@ def test_main_fetch_passes_arguments(monkeypatch: pytest.MonkeyPatch, capsys: py
         prepost: bool,
         actions: bool,
     ) -> pd.DataFrame:
-        observed["ticker"] = ticker
-        observed["start"] = start
-        observed["end"] = end
-        observed["period"] = period
-        observed["interval"] = interval
-        observed["auto_adjust"] = auto_adjust
-        observed["prepost"] = prepost
-        observed["actions"] = actions
+        observed_calls.append(
+            {
+                "ticker": ticker,
+                "start": start,
+                "end": end,
+                "period": period,
+                "interval": interval,
+                "auto_adjust": auto_adjust,
+                "prepost": prepost,
+                "actions": actions,
+            }
+        )
         return pd.DataFrame({"date": ["2026-01-01"], "adj_close": [100.0]})
 
     monkeypatch.setattr(cli_main.data.market, "fetch_yfinance", fake_fetch_yfinance)
+    monkeypatch.setattr(cli_main.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(cli_main.random, "uniform", lambda _a, _b: 0.4)
 
     cli_main.main(
         [
@@ -94,16 +100,18 @@ def test_main_fetch_passes_arguments(monkeypatch: pytest.MonkeyPatch, capsys: py
     )
 
     out = capsys.readouterr().out
-    assert observed == {
-        "ticker": "AAPL",
-        "start": "2026-01-01",
-        "end": "2026-01-31",
-        "period": None,
-        "interval": "30m",
-        "auto_adjust": True,
-        "prepost": True,
-        "actions": True,
-    }
+    assert observed_calls == [
+        {
+            "ticker": "AAPL",
+            "start": "2026-01-01",
+            "end": "2026-01-31",
+            "period": None,
+            "interval": "30m",
+            "auto_adjust": True,
+            "prepost": True,
+            "actions": True,
+        }
+    ]
     assert "adj_close" in out
 
 
@@ -113,7 +121,7 @@ def test_parse_args_fetch_period_mode() -> None:
     args = cli_main._parse_args(["fetch", "MSFT", "--period", "5d", "--interval", "5m"])
 
     assert args.command == "fetch"
-    assert args.ticker == "MSFT"
+    assert args.tickers == ["MSFT"]
     assert args.period == "5d"
     assert args.interval == "5m"
     assert args.start is None
@@ -164,6 +172,13 @@ def test_parse_args_fetch_save_flag() -> None:
     assert args.save is True
 
 
+def test_parse_args_fetch_multiple_tickers() -> None:
+    """Test parsing of multiple ticker symbols for fetch."""
+
+    args = cli_main._parse_args(["fetch", "SPY", "QQQ", "IWM"])
+    assert args.tickers == ["SPY", "QQQ", "IWM"]
+
+
 def test_main_fetch_default_prints_first_and_last_rows(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -184,6 +199,8 @@ def test_main_fetch_default_prints_first_and_last_rows(
         return pd.DataFrame({"date": [f"2026-01-{idx:02d}" for idx in range(1, 11)], "adj_close": list(range(10))})
 
     monkeypatch.setattr(cli_main.data.market, "fetch_yfinance", fake_fetch_yfinance)
+    monkeypatch.setattr(cli_main.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(cli_main.random, "uniform", lambda _a, _b: 0.4)
 
     cli_main.main(["fetch", "AAPL"])
 
@@ -213,6 +230,8 @@ def test_main_fetch_limit_prints_requested_head_rows(
         return pd.DataFrame({"date": [f"2026-01-{idx:02d}" for idx in range(1, 11)], "adj_close": list(range(10))})
 
     monkeypatch.setattr(cli_main.data.market, "fetch_yfinance", fake_fetch_yfinance)
+    monkeypatch.setattr(cli_main.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(cli_main.random, "uniform", lambda _a, _b: 0.4)
 
     cli_main.main(["fetch", "AAPL", "--limit", "2"])
 
@@ -222,12 +241,27 @@ def test_main_fetch_limit_prints_requested_head_rows(
     assert "2026-01-10" not in out
 
 
-def test_save_fetched_data_replaces_prior_snapshot(tmp_path: Path) -> None:
-    """Test save helper replaces previously saved snapshot files on each run."""
+def test_clear_saved_fetch_data_removes_old_snapshots(tmp_path: Path) -> None:
+    """Test cleanup helper removes previous snapshot files."""
+
+    old_a = tmp_path / "latest_market_data_AAPL.csv"
+    old_b = tmp_path / "latest_market_data_MSFT.csv"
+    old_a.write_text("date,adj_close\n2026-01-01,100\n", encoding="utf-8")
+    old_b.write_text("date,adj_close\n2026-01-01,101\n", encoding="utf-8")
+
+    cli_main._clear_saved_fetch_data(output_dir=tmp_path)
+
+    assert not old_a.exists()
+    assert not old_b.exists()
+
+
+def test_save_fetched_data_supports_multiple_tickers_after_cleanup(tmp_path: Path) -> None:
+    """Test save helper keeps one CSV per ticker when cleanup is done once per run."""
 
     df_aapl = pd.DataFrame({"date": ["2026-01-01"], "adj_close": [100.0]})
     df_msft = pd.DataFrame({"date": ["2026-01-02"], "adj_close": [101.0]})
 
+    cli_main._clear_saved_fetch_data(output_dir=tmp_path)
     first_path = cli_main._save_fetched_data(df=df_aapl, ticker="AAPL", output_dir=tmp_path)
     assert first_path.name == "latest_market_data_AAPL.csv"
     assert first_path.exists()
@@ -235,11 +269,14 @@ def test_save_fetched_data_replaces_prior_snapshot(tmp_path: Path) -> None:
     second_path = cli_main._save_fetched_data(df=df_msft, ticker="MSFT", output_dir=tmp_path)
     assert second_path.name == "latest_market_data_MSFT.csv"
     assert second_path.exists()
-    assert not first_path.exists()
+    assert first_path.exists()
 
     saved_files = list(tmp_path.glob("latest_market_data_*.csv"))
-    assert len(saved_files) == 1
-    assert saved_files[0].name == "latest_market_data_MSFT.csv"
+    assert len(saved_files) == 2
+    assert {file.name for file in saved_files} == {
+        "latest_market_data_AAPL.csv",
+        "latest_market_data_MSFT.csv",
+    }
 
 
 def test_main_fetch_save_calls_helper(
@@ -262,17 +299,59 @@ def test_main_fetch_save_calls_helper(
         return pd.DataFrame({"date": ["2026-01-01"], "adj_close": [100.0]})
 
     monkeypatch.setattr(cli_main.data.market, "fetch_yfinance", fake_fetch_yfinance)
+    clear_called = {"count": 0}
+
+    def fake_clear(output_dir=None):
+        clear_called["count"] += 1
+
+    monkeypatch.setattr(cli_main, "_clear_saved_fetch_data", fake_clear)
     monkeypatch.setattr(
         cli_main,
         "_save_fetched_data",
-        lambda df, ticker, output_dir=None: Path("downloads/latest_market_data_AAPL.csv"),
+        lambda df, ticker, output_dir=None: Path(f"downloads/latest_market_data_{ticker}.csv"),
     )
+    monkeypatch.setattr(cli_main.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(cli_main.random, "uniform", lambda _a, _b: 0.4)
 
-    cli_main.main(["fetch", "AAPL", "--save"])
+    cli_main.main(["fetch", "AAPL", "MSFT", "--save"])
 
     out = capsys.readouterr().out
+    assert clear_called["count"] == 1
     assert "Saved fetched data to" in out
     assert "latest_market_data_AAPL.csv" in out
+    assert "latest_market_data_MSFT.csv" in out
+
+
+def test_main_fetch_multiple_tickers_waits_between_fetches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test multi-ticker fetch waits 300-500ms between sequential requests."""
+
+    call_order: list[str] = []
+    sleep_values: list[float] = []
+
+    def fake_fetch_yfinance(
+        ticker: str,
+        start: str | None,
+        end: str | None,
+        *,
+        period: str | None,
+        interval: str,
+        auto_adjust: bool,
+        prepost: bool,
+        actions: bool,
+    ) -> pd.DataFrame:
+        call_order.append(ticker)
+        return pd.DataFrame({"date": ["2026-01-01"], "adj_close": [100.0]})
+
+    monkeypatch.setattr(cli_main.data.market, "fetch_yfinance", fake_fetch_yfinance)
+    monkeypatch.setattr(cli_main.random, "uniform", lambda _a, _b: 0.37)
+    monkeypatch.setattr(cli_main.time, "sleep", lambda seconds: sleep_values.append(seconds))
+
+    cli_main.main(["fetch", "AAPL", "MSFT", "NVDA", "--limit", "1"])
+
+    assert call_order == ["AAPL", "MSFT", "NVDA"]
+    assert sleep_values == [0.37, 0.37]
 
 
 def test_main_analyze_merges_and_prints_metrics(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -328,7 +407,7 @@ def test_module_entrypoint_help_runs_without_runtime_warning() -> None:
     )
 
     assert result.returncode == 0
-    assert "Ticker symbol" in result.stdout
+    assert "ticker symbols" in result.stdout.lower()
     assert "RuntimeWarning" not in result.stderr
 
 
@@ -346,6 +425,6 @@ def test_script_entrypoint_help_runs_without_import_errors() -> None:
     )
 
     assert result.returncode == 0
-    assert "Ticker symbol" in result.stdout
+    assert "ticker symbols" in result.stdout.lower()
     assert "ImportError" not in result.stderr
     assert "ModuleNotFoundError" not in result.stderr

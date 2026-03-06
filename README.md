@@ -59,9 +59,15 @@ Save fetched data to a CSV snapshot for later strategy development:
 python -m src.cli.main fetch AAPL --period 1mo --interval 1d --save
 ```
 
+Fetch multiple tickers with shared settings:
+
+```bash
+python -m src.cli.main fetch AAPL MSFT NVDA --period 5d --interval 30m --save
+```
+
 #### Fetch Flags
 
-- `ticker` (positional): Ticker symbol, for example `AAPL`
+- `tickers` (positional): One or more ticker symbols, for example `AAPL MSFT`
 - `--start YYYY-MM-DD`: Start date (date-range mode)
 - `--end YYYY-MM-DD`: End date, requires `--start`
 - `--period`: Recent window from yfinance
@@ -77,7 +83,8 @@ python -m src.cli.main fetch AAPL --period 1mo --interval 1d --save
 
 Output behavior:
 - If neither `--limit` nor `--all` is provided, the CLI prints the first 3 and last 3 rows.
-- If `--save` is provided, any previous `latest_market_data_*.csv` snapshot is deleted and replaced with the newest fetch output.
+- Fetch requests are run sequentially, and each ticker request starts after the previous one completes with a random 300-500ms delay.
+- If `--save` is provided, previous `latest_market_data_*.csv` snapshots are deleted once at the start of the run, then one CSV is saved per fetched ticker.
 
 Note: `10m` is not currently a native yfinance interval.
 
