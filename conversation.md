@@ -35,6 +35,26 @@
   * Added validation rules to prevent invalid input combinations (`--period` with date range, `--end` without `--start`).
   * Market output normalization now includes lowercase `date` for easier joins with strategy data.
 
+- **Fetch Output Controls (March 2026)**:
+  * Added `--limit N` and `--all` flags for console output control.
+  * `--limit` and `--all` are mutually exclusive.
+  * If neither `--limit` nor `--all` is provided, fetch output defaults to showing the first 3 and last 3 rows.
+
+- **Saved Snapshot Workflow (March 2026)**:
+  * Added `--save` flag on `fetch` to export fetched data to CSV.
+  * Snapshot naming convention: `downloads/latest_market_data_<TICKER>.csv`.
+  * Ticker names are normalized to a filesystem-safe form when creating filenames.
+
+- **Multi-Ticker Fetch Workflow (March 2026)**:
+  * `fetch` now accepts one or more ticker symbols in a single command.
+  * Each ticker is fetched as its own yfinance request with the same flags passed to each request.
+  * Requests run sequentially with a random 300-500ms delay between completed fetches.
+  * With `--save`, old snapshots are cleared once at the start of the run, then one CSV is saved per ticker fetched in that run.
+
+- **Testing Status (March 2026)**:
+  * CLI and data-layer tests were expanded to cover interval/period validation, output controls, save behavior, and multi-ticker sequencing.
+  * Current suite status after these changes: all tests passing (`29 passed`).
+
 ---
 
 > **Note**: The above notes capture the key decisions and setup steps from this session. They can be referenced or expanded upon as the project evolves.
