@@ -71,5 +71,54 @@ def test_fetch_yfinance_normalizes_output(monkeypatch):
     df = market.fetch_yfinance("SPY", "2026-01-01", "2026-01-31")
 
     assert isinstance(df, pd.DataFrame)
-    assert "Date" in df.columns
+    assert "date" in df.columns
     assert "adj_close" in df.columns
+
+
+def test_fetch_yfinance_period_and_interval_are_forwarded(monkeypatch):
+    """Test that period/interval and optional flags are passed to yfinance."""
+
+    import yfinance as yf
+
+    observed: dict[str, object] = {}
+    date_index = pd.date_range("2026-01-01", periods=1, freq="D", name="Date")
+    downloaded = pd.DataFrame({"Adj Close": [100.0]}, index=date_index)
+
+    def fake_download(**kwargs):
+        observed.update(kwargs)
+        return downloaded
+
+    monkeypatch.setattr(yf, "download", fake_download)
+
+    market.fetch_yfinance(
+        "SPY",
+        period="5d",
+        interval="30m",
+        auto_adjust=True,
+        prepost=True,
+        actions=True,
+    )
+
+    assert observed["tickers"] == "SPY"
+    assert observed["period"] == "5d"
+    assert observed["interval"] == "30m"
+    assert observed["auto_adjust"] is True
+    assert observed["prepost"] is True
+    assert observed["actions"] is True
+
+
+def test_fetch_yfinance_rejects_invalid_fetch_window() -> None:
+    """Test validation errors for invalid start/end/period combinations."""
+
+    with pytest.raises(ValueError, match="cannot be combined"):
+        market.fetch_yfinance("SPY", start="2026-01-01", period="1mo")
+
+    with pytest.raises(ValueError, match="requires --start"):
+        market.fetch_yfinance("SPY", end="2026-01-31")
+
+
+def test_fetch_yfinance_rejects_unsupported_interval() -> None:
+    """Test unsupported yfinance interval raises a helpful ValueError."""
+
+    with pytest.raises(ValueError, match="Unsupported interval"):
+        market.fetch_yfinance("SPY", interval="10m")

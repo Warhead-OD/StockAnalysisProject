@@ -52,21 +52,95 @@ def test_main_fetch_passes_arguments(monkeypatch: pytest.MonkeyPatch, capsys: py
     Test that main() passes correct arguments to fetch_yfinance and prints output for 'fetch' command.
     """
 
-    observed: dict[str, str | None] = {}
+    observed: dict[str, str | bool | None] = {}
 
-    def fake_fetch_yfinance(ticker: str, start: str | None, end: str | None) -> pd.DataFrame:
+    def fake_fetch_yfinance(
+        ticker: str,
+        start: str | None,
+        end: str | None,
+        *,
+        period: str | None,
+        interval: str,
+        auto_adjust: bool,
+        prepost: bool,
+        actions: bool,
+    ) -> pd.DataFrame:
         observed["ticker"] = ticker
         observed["start"] = start
         observed["end"] = end
+        observed["period"] = period
+        observed["interval"] = interval
+        observed["auto_adjust"] = auto_adjust
+        observed["prepost"] = prepost
+        observed["actions"] = actions
         return pd.DataFrame({"date": ["2026-01-01"], "adj_close": [100.0]})
 
     monkeypatch.setattr(cli_main.data.market, "fetch_yfinance", fake_fetch_yfinance)
 
-    cli_main.main(["fetch", "AAPL", "--start", "2026-01-01", "--end", "2026-01-31"])
+    cli_main.main(
+        [
+            "fetch",
+            "AAPL",
+            "--start",
+            "2026-01-01",
+            "--end",
+            "2026-01-31",
+            "--interval",
+            "30m",
+            "--auto-adjust",
+            "--prepost",
+            "--actions",
+        ]
+    )
 
     out = capsys.readouterr().out
-    assert observed == {"ticker": "AAPL", "start": "2026-01-01", "end": "2026-01-31"}
+    assert observed == {
+        "ticker": "AAPL",
+        "start": "2026-01-01",
+        "end": "2026-01-31",
+        "period": None,
+        "interval": "30m",
+        "auto_adjust": True,
+        "prepost": True,
+        "actions": True,
+    }
     assert "adj_close" in out
+
+
+def test_parse_args_fetch_period_mode() -> None:
+    """Test parsing period mode and default fetch options."""
+
+    args = cli_main._parse_args(["fetch", "MSFT", "--period", "5d", "--interval", "5m"])
+
+    assert args.command == "fetch"
+    assert args.ticker == "MSFT"
+    assert args.period == "5d"
+    assert args.interval == "5m"
+    assert args.start is None
+    assert args.end is None
+
+
+def test_parse_args_fetch_rejects_mixing_period_with_dates() -> None:
+    """Test invalid period/date combination exits with parser error."""
+
+    with pytest.raises(SystemExit):
+        cli_main._parse_args(
+            [
+                "fetch",
+                "SPY",
+                "--period",
+                "1mo",
+                "--start",
+                "2026-01-01",
+            ]
+        )
+
+
+def test_parse_args_fetch_rejects_end_without_start() -> None:
+    """Test that --end without --start exits with parser error."""
+
+    with pytest.raises(SystemExit):
+        cli_main._parse_args(["fetch", "SPY", "--end", "2026-01-31"])
 
 
 def test_main_analyze_merges_and_prints_metrics(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:

@@ -45,15 +45,49 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     # fetch market data
     fetch = sub.add_parser("fetch", help="Download historical OHLC data from yfinance")
     fetch.add_argument("ticker", help="Ticker symbol (e.g., AAPL)")
-    fetch.add_argument("--start", help="Start date YYYY-MM-DD")
-    fetch.add_argument("--end", help="End date YYYY-MM-DD")
+    fetch.add_argument("--start", help="Start date YYYY-MM-DD (date-range mode)")
+    fetch.add_argument("--end", help="End date YYYY-MM-DD (requires --start)")
+    fetch.add_argument(
+        "--period",
+        choices=data.market.SUPPORTED_PERIODS,
+        help="Recent lookback window, e.g. 1d, 5d, 1mo, ytd (mutually exclusive with --start/--end)",
+    )
+    fetch.add_argument(
+        "--interval",
+        default="1d",
+        choices=data.market.SUPPORTED_INTERVALS,
+        help="Sampling interval, e.g. 1m, 5m, 30m, 1d (default: 1d)",
+    )
+    fetch.add_argument(
+        "--auto-adjust",
+        action="store_true",
+        help="Adjust OHLC prices for splits/dividends",
+    )
+    fetch.add_argument(
+        "--prepost",
+        action="store_true",
+        help="Include pre and post market data when available",
+    )
+    fetch.add_argument(
+        "--actions",
+        action="store_true",
+        help="Include dividends and stock split columns",
+    )
 
     # analyze
     analyze = sub.add_parser("analyze", help="Run metrics on a loaded strategy and market data")
     analyze.add_argument("strategy", help="Strategy name as found in the loaded CSV")
     analyze.add_argument("ticker", help="Ticker to join with the strategy data")
 
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+
+    if args.command == "fetch":
+        if args.period and (args.start or args.end):
+            parser.error("--period cannot be combined with --start/--end")
+        if args.end and not args.start:
+            parser.error("--end requires --start")
+
+    return args
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -73,7 +107,16 @@ def main(argv: list[str] | None = None) -> None:
         # would persist it in memory or a cache.
 
     elif args.command == "fetch":
-        df = data.market.fetch_yfinance(args.ticker, args.start, args.end)
+        df = data.market.fetch_yfinance(
+            ticker=args.ticker,
+            start=args.start,
+            end=args.end,
+            period=args.period,
+            interval=args.interval,
+            auto_adjust=args.auto_adjust,
+            prepost=args.prepost,
+            actions=args.actions,
+        )
         print(df.head())
 
     elif args.command == "analyze":

@@ -28,6 +28,13 @@
   * The current implementation uses `pandas` and `yfinance`.
   * `config.py` sets up a cache directory.
 
+- **Fetch Refactor (March 2026)**:
+  * `market.fetch_yfinance` now supports both date-range mode (`start`/`end`) and recent-window mode (`period`).
+  * Added interval selection for yfinance downloads (including intraday intervals like `1m`, `5m`, `30m`).
+  * CLI `fetch` command now supports `--period`, `--interval`, `--auto-adjust`, `--prepost`, and `--actions`.
+  * Added validation rules to prevent invalid input combinations (`--period` with date range, `--end` without `--start`).
+  * Market output normalization now includes lowercase `date` for easier joins with strategy data.
+
 ---
 
 > **Note**: The above notes capture the key decisions and setup steps from this session. They can be referenced or expanded upon as the project evolves.
