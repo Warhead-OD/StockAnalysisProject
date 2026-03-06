@@ -143,6 +143,78 @@ def test_parse_args_fetch_rejects_end_without_start() -> None:
         cli_main._parse_args(["fetch", "SPY", "--end", "2026-01-31"])
 
 
+def test_parse_args_fetch_limit_and_all_are_mutually_exclusive() -> None:
+    """Test that --limit and --all cannot be used together."""
+
+    with pytest.raises(SystemExit):
+        cli_main._parse_args(["fetch", "SPY", "--limit", "10", "--all"])
+
+
+def test_parse_args_fetch_limit_must_be_positive() -> None:
+    """Test that --limit must be a positive integer."""
+
+    with pytest.raises(SystemExit):
+        cli_main._parse_args(["fetch", "SPY", "--limit", "0"])
+
+
+def test_main_fetch_default_prints_first_and_last_rows(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test default fetch output shows summary plus first and last rows for long datasets."""
+
+    def fake_fetch_yfinance(
+        ticker: str,
+        start: str | None,
+        end: str | None,
+        *,
+        period: str | None,
+        interval: str,
+        auto_adjust: bool,
+        prepost: bool,
+        actions: bool,
+    ) -> pd.DataFrame:
+        return pd.DataFrame({"date": [f"2026-01-{idx:02d}" for idx in range(1, 11)], "adj_close": list(range(10))})
+
+    monkeypatch.setattr(cli_main.data.market, "fetch_yfinance", fake_fetch_yfinance)
+
+    cli_main.main(["fetch", "AAPL"])
+
+    out = capsys.readouterr().out
+    assert "Fetched 10 rows. Showing first 3 and last 3 rows." in out
+    assert "2026-01-01" in out
+    assert "2026-01-10" in out
+
+
+def test_main_fetch_limit_prints_requested_head_rows(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test --limit prints only the first N rows."""
+
+    def fake_fetch_yfinance(
+        ticker: str,
+        start: str | None,
+        end: str | None,
+        *,
+        period: str | None,
+        interval: str,
+        auto_adjust: bool,
+        prepost: bool,
+        actions: bool,
+    ) -> pd.DataFrame:
+        return pd.DataFrame({"date": [f"2026-01-{idx:02d}" for idx in range(1, 11)], "adj_close": list(range(10))})
+
+    monkeypatch.setattr(cli_main.data.market, "fetch_yfinance", fake_fetch_yfinance)
+
+    cli_main.main(["fetch", "AAPL", "--limit", "2"])
+
+    out = capsys.readouterr().out
+    assert "2026-01-01" in out
+    assert "2026-01-02" in out
+    assert "2026-01-10" not in out
+
+
 def test_main_analyze_merges_and_prints_metrics(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     """
     Test that main() merges strategy and market data and prints metrics for 'analyze' command.

@@ -73,6 +73,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Include dividends and stock split columns",
     )
+    output_scope = fetch.add_mutually_exclusive_group()
+    output_scope.add_argument(
+        "--limit",
+        type=int,
+        help="Print only the first N rows",
+    )
+    output_scope.add_argument(
+        "--all",
+        action="store_true",
+        help="Print all fetched rows",
+    )
 
     # analyze
     analyze = sub.add_parser("analyze", help="Run metrics on a loaded strategy and market data")
@@ -86,6 +97,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             parser.error("--period cannot be combined with --start/--end")
         if args.end and not args.start:
             parser.error("--end requires --start")
+        if args.limit is not None and args.limit <= 0:
+            parser.error("--limit must be a positive integer")
 
     return args
 
@@ -117,7 +130,17 @@ def main(argv: list[str] | None = None) -> None:
             prepost=args.prepost,
             actions=args.actions,
         )
-        print(df.head())
+        if args.all:
+            print(df)
+        elif args.limit is not None:
+            print(df.head(args.limit))
+        elif len(df) <= 6:
+            print(df)
+        else:
+            print(f"Fetched {len(df)} rows. Showing first 3 and last 3 rows.")
+            print(df.head(3))
+            print("...")
+            print(df.tail(3))
 
     elif args.command == "analyze":
         strategy_df = data.strategy.get_loaded()

@@ -65,6 +65,11 @@ python -m src.cli.main fetch MSFT --period 1mo --interval 30m --prepost --action
 - `--auto-adjust`: Adjust prices for splits/dividends
 - `--prepost`: Include pre/post-market bars (when available)
 - `--actions`: Include dividends and split columns
+- `--limit N`: Print only the first `N` rows to console
+- `--all`: Print all rows to console
+
+Output behavior:
+- If neither `--limit` nor `--all` is provided, the CLI prints the first 3 and last 3 rows.
 
 Note: `10m` is not currently a native yfinance interval.
 
