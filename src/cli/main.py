@@ -75,6 +75,19 @@ def _print_fetch_output(df: pd.DataFrame, args: argparse.Namespace, ticker: str)
         print(df.tail(3))
 
 
+def _resolve_fetch_dataframe(
+    *,
+    ticker: str,
+    interval: str,
+    fallback_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Use persisted parquet artifacts for CLI display when available."""
+
+    if data.market_data_access.has_dataset(ticker=ticker, interval=interval):
+        return data.market_data_access.load_dataset(ticker=ticker, interval=interval)
+    return fallback_df
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """
     Parse command-line arguments for the stock analysis CLI.
@@ -180,7 +193,7 @@ def main(argv: list[str] | None = None) -> None:
             _clear_saved_fetch_data()
 
         for index, ticker in enumerate(args.tickers):
-            df = data.market.fetch_yfinance(
+            fetched_df = data.market.fetch_yfinance(
                 ticker=ticker,
                 start=args.start,
                 end=args.end,
@@ -190,12 +203,17 @@ def main(argv: list[str] | None = None) -> None:
                 prepost=args.prepost,
                 actions=args.actions,
             )
+            display_df = _resolve_fetch_dataframe(
+                ticker=ticker,
+                interval=args.interval,
+                fallback_df=fetched_df,
+            )
 
             if args.save:
-                saved_path = _save_fetched_data(df=df, ticker=ticker)
+                saved_path = _save_fetched_data(df=display_df, ticker=ticker)
                 print(f"Saved fetched data to {saved_path}")
 
-            _print_fetch_output(df=df, args=args, ticker=ticker)
+            _print_fetch_output(df=display_df, args=args, ticker=ticker)
 
             if index < len(args.tickers) - 1:
                 time.sleep(random.uniform(FETCH_DELAY_MIN_SECONDS, FETCH_DELAY_MAX_SECONDS))
