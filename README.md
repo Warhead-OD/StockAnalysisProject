@@ -100,3 +100,11 @@ Fetched market data is normalized to lowercase columns where possible:
 - `date`, `open`, `high`, `low`, `close`, `adj_close`, `volume`
 
 This makes merges and metric pipelines more predictable.
+
+## Storage Layout
+
+Fetched market datasets are stored in efficient machine-readable formats for downstream strategy building:
+- Canonical dataset files: `downloads/market/latest_market_<TICKER>_<INTERVAL>.parquet`
+- Metadata sidecar files: `downloads/meta/latest_market_<TICKER>_<INTERVAL>.json`
+
+If `--save` is used, user-facing CSV snapshots are still generated in `downloads/` for quick manual inspection.

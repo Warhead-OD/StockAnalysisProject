@@ -9,6 +9,10 @@ from __future__ import annotations
 import pandas as pd
 from pathlib import Path
 
+from .market_fetcher import SUPPORTED_INTERVALS, SUPPORTED_PERIODS, fetch_market_data
+from .market_models import MarketDatasetMetadata, MarketFetchRequest
+from .market_repository import save_market_dataset
+
 # Simple cache for loaded data – in a real project you might use a more robust solution.
 _loaded_strategy: pd.DataFrame | None = None
 _loaded_market: pd.DataFrame | None = None
@@ -73,75 +77,8 @@ class _MarketModule:
         ``download`` interface.
     """
 
-    SUPPORTED_PERIODS: tuple[str, ...] = (
-        "1d",
-        "5d",
-        "1mo",
-        "3mo",
-        "6mo",
-        "1y",
-        "2y",
-        "5y",
-        "10y",
-        "ytd",
-        "max",
-    )
-    SUPPORTED_INTERVALS: tuple[str, ...] = (
-        "1m",
-        "2m",
-        "5m",
-        "15m",
-        "30m",
-        "60m",
-        "90m",
-        "1h",
-        "1d",
-        "5d",
-        "1wk",
-        "1mo",
-        "3mo",
-    )
-
-    def _validate_fetch_window(
-        self,
-        start: str | None,
-        end: str | None,
-        period: str | None,
-    ) -> None:
-        """Validate start/end/period combinations before requesting data."""
-
-        if period is not None and (start is not None or end is not None):
-            raise ValueError("--period cannot be combined with --start/--end")
-        if end is not None and start is None:
-            raise ValueError("--end requires --start")
-        if start is not None and end is not None:
-            start_dt = pd.to_datetime(start)
-            end_dt = pd.to_datetime(end)
-            if start_dt > end_dt:
-                raise ValueError("--start must be before or equal to --end")
-
-    def _normalize_downloaded_frame(self, downloaded: pd.DataFrame) -> pd.DataFrame:
-        """Normalize yfinance output into a consistent, merge-friendly schema."""
-
-        if isinstance(downloaded.columns, pd.MultiIndex):
-            downloaded = downloaded.copy()
-            downloaded.columns = downloaded.columns.get_level_values(0)
-
-        df = downloaded.reset_index().rename(
-            columns={
-                "Date": "date",
-                "Datetime": "date",
-                "Open": "open",
-                "High": "high",
-                "Low": "low",
-                "Close": "close",
-                "Adj Close": "adj_close",
-                "Volume": "volume",
-            }
-        )
-        if "date" in df.columns:
-            df["date"] = pd.to_datetime(df["date"])
-        return df
+    SUPPORTED_PERIODS = SUPPORTED_PERIODS
+    SUPPORTED_INTERVALS = SUPPORTED_INTERVALS
 
     def fetch_yfinance(
         self,
@@ -172,22 +109,8 @@ class _MarketModule:
             A normalized DataFrame with lowercase column names and ``date``.
         """
 
-        if not ticker or not ticker.strip():
-            raise ValueError("ticker must be a non-empty string")
-        if interval not in self.SUPPORTED_INTERVALS:
-            raise ValueError(
-                f"Unsupported interval '{interval}'. Supported values: {', '.join(self.SUPPORTED_INTERVALS)}"
-            )
-        if period is not None and period not in self.SUPPORTED_PERIODS:
-            raise ValueError(
-                f"Unsupported period '{period}'. Supported values: {', '.join(self.SUPPORTED_PERIODS)}"
-            )
-        self._validate_fetch_window(start=start, end=end, period=period)
-
-        import yfinance as yf
-
-        downloaded = yf.download(
-            tickers=ticker,
+        request = MarketFetchRequest(
+            ticker=ticker,
             start=start,
             end=end,
             period=period,
@@ -195,12 +118,11 @@ class _MarketModule:
             auto_adjust=auto_adjust,
             prepost=prepost,
             actions=actions,
-            progress=False,
         )
-        if not isinstance(downloaded, pd.DataFrame):
-            raise RuntimeError("Failed to download market data")
+        df = fetch_market_data(request)
+        metadata = MarketDatasetMetadata.from_request(request, row_count=len(df))
+        save_market_dataset(df=df, metadata=metadata)
 
-        df = self._normalize_downloaded_frame(downloaded)
         global _loaded_market
         _loaded_market = df
         return df

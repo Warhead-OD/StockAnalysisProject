@@ -55,6 +55,17 @@
   * CLI and data-layer tests were expanded to cover interval/period validation, output controls, save behavior, and multi-ticker sequencing.
   * Current suite status after these changes: all tests passing (`29 passed`).
 
+- **Data Layer Refactor (March 2026)**:
+  * Market-data responsibilities were split into dedicated modules:
+    - `src/data/market_fetcher.py` for yfinance access + normalization
+    - `src/data/market_repository.py` for artifact persistence
+    - `src/data/market_models.py` for fetch/metadata models
+  * `src/data/__init__.py` now acts as a thin facade that orchestrates the fetcher and repository while keeping the existing `market.fetch_yfinance(...)` API intact for CLI compatibility.
+  * Canonical fetch artifacts are now persisted as:
+    - Parquet data in `downloads/market/`
+    - JSON metadata in `downloads/meta/`
+  * Existing CLI console output and `--save` snapshot UX remain unchanged.
+
 ---
 
 > **Note**: The above notes capture the key decisions and setup steps from this session. They can be referenced or expanded upon as the project evolves.

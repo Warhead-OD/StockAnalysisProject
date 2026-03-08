@@ -10,6 +10,7 @@ import shutil
 
 import pytest
 
+import src.data as data_module
 from src.data import strategy
 from src.data import market
 
@@ -51,6 +52,11 @@ def test_fetch_yfinance_raises_on_non_dataframe(monkeypatch):
     import yfinance as yf
 
     monkeypatch.setattr(yf, "download", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        data_module,
+        "save_market_dataset",
+        lambda *_args, **_kwargs: (Path("downloads/market/mock.parquet"), Path("downloads/meta/mock.json")),
+    )
 
     with pytest.raises(RuntimeError, match="Failed to download market data"):
         market.fetch_yfinance("SPY", "2026-01-01", "2026-01-31")
@@ -67,6 +73,11 @@ def test_fetch_yfinance_normalizes_output(monkeypatch):
     downloaded = pd.DataFrame({"Adj Close": [100.0, 101.0]}, index=date_index)
 
     monkeypatch.setattr(yf, "download", lambda *_args, **_kwargs: downloaded)
+    monkeypatch.setattr(
+        data_module,
+        "save_market_dataset",
+        lambda *_args, **_kwargs: (Path("downloads/market/mock.parquet"), Path("downloads/meta/mock.json")),
+    )
 
     df = market.fetch_yfinance("SPY", "2026-01-01", "2026-01-31")
 
@@ -89,6 +100,11 @@ def test_fetch_yfinance_period_and_interval_are_forwarded(monkeypatch):
         return downloaded
 
     monkeypatch.setattr(yf, "download", fake_download)
+    monkeypatch.setattr(
+        data_module,
+        "save_market_dataset",
+        lambda *_args, **_kwargs: (Path("downloads/market/mock.parquet"), Path("downloads/meta/mock.json")),
+    )
 
     market.fetch_yfinance(
         "SPY",
@@ -122,3 +138,30 @@ def test_fetch_yfinance_rejects_unsupported_interval() -> None:
 
     with pytest.raises(ValueError, match="Unsupported interval"):
         market.fetch_yfinance("SPY", interval="10m")
+
+
+def test_fetch_yfinance_builds_metadata_for_persistence(monkeypatch):
+    """Test that fetch builds metadata and sends both frame and metadata to persistence layer."""
+
+    import yfinance as yf
+
+    date_index = pd.date_range("2026-01-01", periods=3, freq="D", name="Date")
+    downloaded = pd.DataFrame({"Adj Close": [100.0, 101.0, 102.0]}, index=date_index)
+    observed: dict[str, object] = {}
+
+    def fake_save(df, metadata):
+        observed["df"] = df
+        observed["metadata"] = metadata
+        return Path("downloads/market/mock.parquet"), Path("downloads/meta/mock.json")
+
+    monkeypatch.setattr(yf, "download", lambda *_args, **_kwargs: downloaded)
+    monkeypatch.setattr(data_module, "save_market_dataset", fake_save)
+
+    df = market.fetch_yfinance("SPY", period="5d", interval="1d")
+
+    metadata = observed["metadata"]
+    assert observed["df"].equals(df)
+    assert metadata.ticker == "SPY"
+    assert metadata.interval == "1d"
+    assert metadata.period == "5d"
+    assert metadata.row_count == 3
