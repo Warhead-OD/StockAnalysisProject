@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 from datetime import UTC, datetime
+from typing import Any, Mapping
 
 
 @dataclass(frozen=True)
@@ -66,8 +67,12 @@ class MarketDatasetMetadata:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, payload: dict[str, object]) -> "MarketDatasetMetadata":
+    def from_dict(cls, payload: Mapping[str, Any]) -> "MarketDatasetMetadata":
         """Create typed metadata from a decoded JSON payload."""
+
+        row_count_value = payload.get("row_count")
+        if isinstance(row_count_value, bool) or not isinstance(row_count_value, (int, float, str)):
+            raise ValueError("Invalid row_count in market metadata payload")
 
         return cls(
             ticker=str(payload["ticker"]),
@@ -80,5 +85,5 @@ class MarketDatasetMetadata:
             actions=bool(payload["actions"]),
             exchange_timezone=str(payload["exchange_timezone"]),
             fetched_at_utc=str(payload["fetched_at_utc"]),
-            row_count=int(payload["row_count"]),
+            row_count=int(row_count_value),
         )
