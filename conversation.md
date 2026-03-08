@@ -60,11 +60,19 @@
     - `src/data/market_fetcher.py` for yfinance access + normalization
     - `src/data/market_repository.py` for artifact persistence
     - `src/data/market_models.py` for fetch/metadata models
+    - `src/data/market_data_access.py` for read-side dataset/metadata loading
   * `src/data/__init__.py` now acts as a thin facade that orchestrates the fetcher and repository while keeping the existing `market.fetch_yfinance(...)` API intact for CLI compatibility.
   * Canonical fetch artifacts are now persisted as:
     - Parquet data in `downloads/market/`
     - JSON metadata in `downloads/meta/`
   * Existing CLI console output and `--save` snapshot UX remain unchanged.
+
+- **A2 Fetch Wiring (March 2026)**:
+  * CLI fetch internals were updated to resolve display/export data via `market_data_access` when persisted Parquet artifacts are available.
+  * CLI fetch still falls back to the in-memory dataframe returned by `market.fetch_yfinance(...)` if persisted artifacts are missing.
+  * Existing tests were refactored to stub read-side data access by default for deterministic behavior.
+  * New integration-path tests now verify parquet-first display/export behavior and fallback behavior.
+  * Current suite status after A2 updates: all tests passing (`33 passed`).
 
 ---
 

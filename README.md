@@ -85,6 +85,7 @@ Output behavior:
 - If neither `--limit` nor `--all` is provided, the CLI prints the first 3 and last 3 rows.
 - Fetch requests are run sequentially, and each ticker request starts after the previous one completes with a random 300-500ms delay.
 - If `--save` is provided, previous `latest_market_data_*.csv` snapshots are deleted once at the start of the run, then one CSV is saved per fetched ticker.
+- The CLI prefers persisted Parquet data for fetch display/export when available, and falls back to the immediate in-memory fetch result if artifacts are not yet present.
 
 Note: `10m` is not currently a native yfinance interval.
 
