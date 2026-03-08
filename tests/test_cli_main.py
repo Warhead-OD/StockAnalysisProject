@@ -366,6 +366,91 @@ def test_main_fetch_multiple_tickers_waits_between_fetches(
     assert sleep_values == [0.37, 0.37]
 
 
+def test_main_fetch_uses_parquet_data_when_available(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test fetch output prefers persisted parquet data when available."""
+
+    fetched_df = pd.DataFrame({"date": ["2026-01-01"], "adj_close": [100.0]})
+    parquet_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "adj_close": [200.0, 201.0]})
+
+    monkeypatch.setattr(
+        cli_main.data.market,
+        "fetch_yfinance",
+        lambda *args, **kwargs: fetched_df,
+    )
+    monkeypatch.setattr(cli_main.data.market_data_access, "has_dataset", lambda **_kwargs: True)
+    monkeypatch.setattr(cli_main.data.market_data_access, "load_dataset", lambda **_kwargs: parquet_df)
+    monkeypatch.setattr(cli_main.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(cli_main.random, "uniform", lambda _a, _b: 0.4)
+
+    cli_main.main(["fetch", "AAPL", "--all"])
+
+    out = capsys.readouterr().out
+    assert "200.0" in out
+    assert "201.0" in out
+    assert "100.0" not in out
+
+
+def test_main_fetch_save_uses_resolved_dataframe(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test --save writes the resolved dataframe used for console output."""
+
+    fetched_df = pd.DataFrame({"date": ["2026-01-01"], "adj_close": [100.0]})
+    parquet_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "adj_close": [200.0, 201.0]})
+    observed: dict[str, pd.DataFrame] = {}
+
+    monkeypatch.setattr(
+        cli_main.data.market,
+        "fetch_yfinance",
+        lambda *args, **kwargs: fetched_df,
+    )
+    monkeypatch.setattr(cli_main.data.market_data_access, "has_dataset", lambda **_kwargs: True)
+    monkeypatch.setattr(cli_main.data.market_data_access, "load_dataset", lambda **_kwargs: parquet_df)
+    monkeypatch.setattr(cli_main, "_clear_saved_fetch_data", lambda output_dir=None: None)
+
+    def fake_save(df: pd.DataFrame, ticker: str, output_dir=None) -> Path:
+        observed["df"] = df
+        return Path(f"downloads/latest_market_data_{ticker}.csv")
+
+    monkeypatch.setattr(cli_main, "_save_fetched_data", fake_save)
+    monkeypatch.setattr(cli_main.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(cli_main.random, "uniform", lambda _a, _b: 0.4)
+
+    cli_main.main(["fetch", "AAPL", "--save", "--limit", "1"])
+
+    out = capsys.readouterr().out
+    assert "Saved fetched data to" in out
+    assert observed["df"].equals(parquet_df)
+
+
+def test_main_fetch_falls_back_when_parquet_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test fetch uses yfinance dataframe when persisted parquet is unavailable."""
+
+    fetched_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "adj_close": [123.0, 124.0]})
+
+    monkeypatch.setattr(
+        cli_main.data.market,
+        "fetch_yfinance",
+        lambda *args, **kwargs: fetched_df,
+    )
+    monkeypatch.setattr(cli_main.data.market_data_access, "has_dataset", lambda **_kwargs: False)
+    monkeypatch.setattr(cli_main.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(cli_main.random, "uniform", lambda _a, _b: 0.4)
+
+    cli_main.main(["fetch", "AAPL", "--all"])
+
+    out = capsys.readouterr().out
+    assert "123.0" in out
+    assert "124.0" in out
+
+
 def test_main_analyze_merges_and_prints_metrics(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     """
     Test that main() merges strategy and market data and prints metrics for 'analyze' command.
