@@ -10,6 +10,7 @@ import pandas as pd
 from pathlib import Path
 
 from .market_fetcher import SUPPORTED_INTERVALS, SUPPORTED_PERIODS, fetch_market_data
+from .market_data_access import market_data_access
 from .market_models import MarketDatasetMetadata, MarketFetchRequest
 from .market_repository import save_market_dataset
 
@@ -17,7 +18,7 @@ from .market_repository import save_market_dataset
 _loaded_strategy: pd.DataFrame | None = None
 _loaded_market: pd.DataFrame | None = None
 
-__all__ = ["strategy", "market"]
+__all__ = ["strategy", "market", "market_data_access"]
 
 # Strategy sub‑module
 class _StrategyModule:

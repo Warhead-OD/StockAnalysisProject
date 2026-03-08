@@ -64,3 +64,21 @@ class MarketDatasetMetadata:
         """Convert metadata to a JSON-serializable dict."""
 
         return asdict(self)
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> "MarketDatasetMetadata":
+        """Create typed metadata from a decoded JSON payload."""
+
+        return cls(
+            ticker=str(payload["ticker"]),
+            interval=str(payload["interval"]),
+            period=str(payload["period"]) if payload.get("period") is not None else None,
+            start=str(payload["start"]) if payload.get("start") is not None else None,
+            end=str(payload["end"]) if payload.get("end") is not None else None,
+            auto_adjust=bool(payload["auto_adjust"]),
+            prepost=bool(payload["prepost"]),
+            actions=bool(payload["actions"]),
+            exchange_timezone=str(payload["exchange_timezone"]),
+            fetched_at_utc=str(payload["fetched_at_utc"]),
+            row_count=int(payload["row_count"]),
+        )
