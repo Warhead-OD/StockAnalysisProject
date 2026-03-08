@@ -15,6 +15,18 @@ import pytest
 import src.cli.main as cli_main
 
 
+@pytest.fixture(autouse=True)
+def _stub_market_data_access(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Default to in-memory fetch frames unless a test overrides data-access behavior."""
+
+    monkeypatch.setattr(cli_main.data.market_data_access, "has_dataset", lambda **_kwargs: False)
+    monkeypatch.setattr(
+        cli_main.data.market_data_access,
+        "load_dataset",
+        lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("load_dataset should not be called in this test")),
+    )
+
+
 def test_parse_args_load_command() -> None:
     """
     Test parsing of 'load' command arguments.
