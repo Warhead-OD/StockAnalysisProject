@@ -159,6 +159,24 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     analyze.add_argument("strategy", help="Strategy name as found in the loaded CSV")
     analyze.add_argument("ticker", help="Ticker to join with the strategy data")
 
+    # build strategy (scaffold)
+    build_strategy = sub.add_parser(
+        "build-strategy",
+        help="Build a strategy from previously fetched market data (scaffold)",
+    )
+    build_strategy.add_argument("ticker", help="Single ticker symbol to build strategy for")
+    build_strategy.add_argument(
+        "--interval",
+        required=True,
+        choices=data.market.SUPPORTED_INTERVALS,
+        help="Target strategy interval (e.g., 5m, 1h, 1d)",
+    )
+    build_strategy.add_argument(
+        "--category",
+        choices=["intraday", "daily", "long-term"],
+        help="Optional strategy category label for simplified workflow",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "fetch":
@@ -225,6 +243,12 @@ def main(argv: list[str] | None = None) -> None:
         metrics = analysis.metrics.compute_all(merged)
         for name, value in metrics.items():
             print(f"{name}: {value:.4f}")
+
+    elif args.command == "build-strategy":
+        print(
+            "build-strategy scaffold is active. "
+            "Data validation and strategy generation will be added in the next sub-slice."
+        )
 
     else:
         print("Unknown command", file=sys.stderr)
