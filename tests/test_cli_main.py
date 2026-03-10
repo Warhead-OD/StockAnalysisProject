@@ -221,6 +221,61 @@ def test_parse_args_fetch_multiple_tickers() -> None:
     assert args.tickers == ["SPY", "QQQ", "IWM"]
 
 
+def test_parse_args_build_strategy_command() -> None:
+    """Test parsing build-strategy command arguments."""
+
+    args = cli_main._parse_args(["build-strategy", "AAPL", "--interval", "1d", "--category", "daily"])
+
+    assert args.command == "build-strategy"
+    assert args.ticker == "AAPL"
+    assert args.interval == "1d"
+    assert args.category == "daily"
+
+
+def test_parse_args_build_strategy_rejects_category_interval_mismatch() -> None:
+    """Test parser rejects mismatched strategy category and interval selections."""
+
+    with pytest.raises(SystemExit):
+        cli_main._parse_args(["build-strategy", "AAPL", "--interval", "1d", "--category", "intraday"])
+
+
+def test_main_build_strategy_requires_existing_market_data(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test build-strategy exits with error when required fetched dataset is missing."""
+
+    monkeypatch.setattr(cli_main.data.market_data_access, "has_dataset", lambda **_kwargs: False)
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main.main(["build-strategy", "AAPL", "--interval", "1d"])
+
+    err = capsys.readouterr().err
+    assert exc.value.code == 1
+    assert "required fetched market data was not found" in err
+
+
+def test_main_build_strategy_loads_dataset_and_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test build-strategy scaffold loads persisted data artifacts when available."""
+
+    monkeypatch.setattr(cli_main.data.market_data_access, "has_dataset", lambda **_kwargs: True)
+    monkeypatch.setattr(cli_main.data.market_data_access, "load_dataset", lambda **_kwargs: _sample_market_df())
+    monkeypatch.setattr(
+        cli_main.data.market_data_access,
+        "load_metadata",
+        lambda **_kwargs: _sample_metadata(ticker="AAPL", interval="1d"),
+    )
+
+    cli_main.main(["build-strategy", "AAPL", "--interval", "1d", "--category", "daily"])
+
+    out = capsys.readouterr().out
+    assert "build-strategy scaffold is active" in out
+    assert "Loaded 2 rows for AAPL (1d" in out
+
+
 def test_main_fetch_default_prints_first_and_last_rows(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
