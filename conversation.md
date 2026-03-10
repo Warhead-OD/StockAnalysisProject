@@ -74,6 +74,18 @@
   * New integration-path tests now verify parquet-first display/export behavior and fallback behavior.
   * Current suite status after A2 updates: all tests passing (`33 passed`).
 
+- **B1 Build-Strategy Scaffold (March 2026)**:
+  * Added new CLI command scaffold: `build-strategy`.
+  * Added required arguments for single-ticker workflow:
+    - positional `ticker`
+    - required `--interval`
+    - optional `--category` (`intraday`, `daily`, `long-term`)
+  * Added parser-level validation ensuring that `--category` (when provided) matches the implied category for `--interval`.
+  * Added runtime preflight validation requiring fetched artifacts to exist for the selected ticker/interval before running strategy build flow.
+  * Current scaffold loads persisted dataset + metadata and prints a confirmation summary (strategy generation logic to follow in later slices).
+  * CLI tests were expanded to cover build-strategy parsing, mismatch validation, missing-data failure behavior, and successful preflight loading behavior.
+  * Current suite status after B1 scaffold updates: all tests passing (`37 passed`).
+
 ---
 
 > **Note**: The above notes capture the key decisions and setup steps from this session. They can be referenced or expanded upon as the project evolves.
