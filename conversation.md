@@ -86,6 +86,18 @@
   * CLI tests were expanded to cover build-strategy parsing, mismatch validation, missing-data failure behavior, and successful preflight loading behavior.
   * Current suite status after B1 scaffold updates: all tests passing (`37 passed`).
 
+- **B2 Trend-Following Generation (March 2026)**:
+  * Added strategy-building contracts and scaffolding modules:
+    - `src/analysis/strategy_models.py`
+    - `src/analysis/strategy_builder.py`
+  * Implemented initial trend-following (price action) strategy generation for single ticker/interval builds.
+  * Builder now derives core parameters from market candles (moving averages, breakout windows, ATR-derived stop/take-profit multipliers) and emits concrete long-only entry/exit/SL/TP rule descriptions.
+  * `build-strategy` CLI now runs the strategy builder and writes deterministic JSON artifacts to:
+    - `outputs/strategy_plan_<TICKER>_<INTERVAL>.json`
+  * Added dedicated unit tests for strategy builder success/error paths in `tests/test_strategy_builder.py`.
+  * Strengthened CLI integration tests to validate generated artifact payload structure and deterministic output naming.
+  * Current suite status after B2 updates: all tests passing (`41 passed`).
+
 ---
 
 > **Note**: The above notes capture the key decisions and setup steps from this session. They can be referenced or expanded upon as the project evolves.

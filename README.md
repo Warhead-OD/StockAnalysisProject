@@ -95,7 +95,7 @@ Note: `10m` is not currently a native yfinance interval.
 python -m src.cli.main analyze demo-strategy SPY
 ```
 
-### `build-strategy` (Scaffold)
+### `build-strategy`
 
 Builds strategy artifacts from previously fetched market data for one ticker/interval pair.
 
@@ -103,10 +103,12 @@ Builds strategy artifacts from previously fetched market data for one ticker/int
 python -m src.cli.main build-strategy AAPL --interval 1d --category daily
 ```
 
-Current scaffold behavior:
+Current behavior:
 - Requires existing fetched artifacts for the selected ticker and interval.
 - If missing, exits with an error and instructs you to run `fetch` first.
-- Loads persisted dataset + metadata and prints a confirmation summary.
+- Loads persisted dataset + metadata, builds a trend-following long-only strategy, and prints a confirmation summary.
+- Saves a deterministic machine-readable artifact file to:
+  - `outputs/strategy_plan_<TICKER>_<INTERVAL>.json`
 
 Flags:
 - `ticker` (positional): single ticker symbol
@@ -115,6 +117,12 @@ Flags:
 
 Validation:
 - If `--category` is provided, it must match the selected `--interval` group.
+
+Generated strategy artifact highlights:
+- `strategy_id` and generation timestamp (`generated_at_utc`)
+- selected ticker/interval/category
+- derived parameter values (moving-average windows, ATR windows/multipliers, breakout level/buffer)
+- human-readable entry/exit/stop-loss/take-profit rule text
 
 ## Data Normalization
 
