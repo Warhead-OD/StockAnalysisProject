@@ -5,6 +5,7 @@ Regression tests for CLI command routing and output formatting.
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -278,6 +279,13 @@ def test_main_build_strategy_loads_dataset_and_metadata(
         "load_metadata",
         lambda **_kwargs: _sample_metadata(ticker="AAPL", interval="1d"),
     )
+    written: dict[str, str] = {}
+
+    def fake_write_text(self: Path, text: str, encoding: str = "utf-8") -> int:
+        written[str(self)] = text
+        return len(text)
+
+    monkeypatch.setattr(Path, "write_text", fake_write_text)
 
     cli_main.main(["build-strategy", "AAPL", "--interval", "1d", "--category", "daily"])
 
@@ -285,6 +293,15 @@ def test_main_build_strategy_loads_dataset_and_metadata(
     assert "Built strategy trend_following_AAPL_1d" in out
     assert "rows=80, status=generated" in out
     assert "Saved strategy artifact to" in out
+
+    assert len(written) == 1
+    artifact_path = next(iter(written.keys()))
+    payload = json.loads(next(iter(written.values())))
+    assert artifact_path.endswith("outputs\\strategy_plan_AAPL_1d.json")
+    assert payload["strategy_id"] == "trend_following_AAPL_1d"
+    assert payload["status"] == "generated"
+    assert payload["category"] == "daily"
+    assert payload["rules"]["style"] == "trend-following"
 
 
 def test_main_fetch_default_prints_first_and_last_rows(
