@@ -32,6 +32,9 @@ FETCH_EXPORT_DIR = Path("downloads")
 FETCH_EXPORT_PREFIX = "latest_market_data"
 FETCH_DELAY_MIN_SECONDS = 0.3
 FETCH_DELAY_MAX_SECONDS = 0.5
+INTRADAY_INTERVALS = {"1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h"}
+DAILY_INTERVALS = {"1d", "5d"}
+LONG_TERM_INTERVALS = {"1wk", "1mo", "3mo"}
 
 
 def _clear_saved_fetch_data(output_dir: Path | None = None) -> None:
@@ -86,6 +89,18 @@ def _resolve_fetch_dataframe(
     if data.market_data_access.has_dataset(ticker=ticker, interval=interval):
         return data.market_data_access.load_dataset(ticker=ticker, interval=interval)
     return fallback_df
+
+
+def _interval_category(interval: str) -> str:
+    """Return strategy category implied by a market-data interval."""
+
+    if interval in INTRADAY_INTERVALS:
+        return "intraday"
+    if interval in DAILY_INTERVALS:
+        return "daily"
+    if interval in LONG_TERM_INTERVALS:
+        return "long-term"
+    raise ValueError(f"No strategy category mapping exists for interval '{interval}'")
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -186,6 +201,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             parser.error("--end requires --start")
         if args.limit is not None and args.limit <= 0:
             parser.error("--limit must be a positive integer")
+    if args.command == "build-strategy" and args.category:
+        expected_category = _interval_category(args.interval)
+        if args.category != expected_category:
+            parser.error(
+                f"--category {args.category} does not match interval {args.interval} "
+                f"(expected {expected_category})"
+            )
 
     return args
 
@@ -245,9 +267,20 @@ def main(argv: list[str] | None = None) -> None:
             print(f"{name}: {value:.4f}")
 
     elif args.command == "build-strategy":
+        if not data.market_data_access.has_dataset(ticker=args.ticker, interval=args.interval):
+            print(
+                "Cannot run build-strategy: required fetched market data was not found. "
+                "Run fetch first for this ticker and interval.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        metadata = data.market_data_access.load_metadata(ticker=args.ticker, interval=args.interval)
+        dataset = data.market_data_access.load_dataset(ticker=args.ticker, interval=args.interval)
         print(
             "build-strategy scaffold is active. "
-            "Data validation and strategy generation will be added in the next sub-slice."
+            f"Loaded {len(dataset)} rows for {metadata.ticker} "
+            f"({metadata.interval}, fetched {metadata.fetched_at_utc})."
         )
 
     else:
