@@ -19,7 +19,17 @@ from src.data.market_models import MarketDatasetMetadata
 def _sample_market_df() -> pd.DataFrame:
     """Build a small normalized market dataframe used across CLI tests."""
 
-    return pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "adj_close": [100.0, 101.0]})
+    rows = 80
+    return pd.DataFrame(
+        {
+            "date": pd.date_range("2026-01-01", periods=rows, freq="D").strftime("%Y-%m-%d"),
+            "open": [100.0 + idx * 0.2 for idx in range(rows)],
+            "high": [100.8 + idx * 0.2 for idx in range(rows)],
+            "low": [99.2 + idx * 0.2 for idx in range(rows)],
+            "close": [100.4 + idx * 0.2 for idx in range(rows)],
+            "adj_close": [100.4 + idx * 0.2 for idx in range(rows)],
+        }
+    )
 
 
 def _sample_metadata(*, ticker: str = "AAPL", interval: str = "1d") -> MarketDatasetMetadata:
@@ -36,7 +46,7 @@ def _sample_metadata(*, ticker: str = "AAPL", interval: str = "1d") -> MarketDat
         actions=False,
         exchange_timezone="America/New_York",
         fetched_at_utc="2026-03-10T00:00:00Z",
-        row_count=2,
+        row_count=80,
     )
 
 
@@ -272,8 +282,9 @@ def test_main_build_strategy_loads_dataset_and_metadata(
     cli_main.main(["build-strategy", "AAPL", "--interval", "1d", "--category", "daily"])
 
     out = capsys.readouterr().out
-    assert "build-strategy scaffold is active" in out
-    assert "Loaded 2 rows for AAPL (1d" in out
+    assert "Built strategy trend_following_AAPL_1d" in out
+    assert "rows=80, status=generated" in out
+    assert "Saved strategy artifact to" in out
 
 
 def test_main_fetch_default_prints_first_and_last_rows(

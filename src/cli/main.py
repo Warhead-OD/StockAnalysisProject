@@ -8,6 +8,7 @@ to the underlying modules in :pymod:`src.data` and :pymod:`src.analysis`.
 from __future__ import annotations
 
 import argparse
+import json
 import random
 import re
 import sys
@@ -18,13 +19,13 @@ import pandas as pd
 
 try:
     # Package execution: `python -m src.cli.main`
-    from .. import analysis, data
+    from .. import analysis, config, data
 except ImportError:
     # Direct script execution: `python src/cli/main.py`
     project_root = Path(__file__).resolve().parents[2]
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
-    from src import analysis, data
+    from src import analysis, config, data
 
 __all__ = ["main"]
 
@@ -32,6 +33,7 @@ FETCH_EXPORT_DIR = Path("downloads")
 FETCH_EXPORT_PREFIX = "latest_market_data"
 FETCH_DELAY_MIN_SECONDS = 0.3
 FETCH_DELAY_MAX_SECONDS = 0.5
+STRATEGY_OUTPUT_PREFIX = "strategy_plan"
 INTRADAY_INTERVALS = {"1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h"}
 DAILY_INTERVALS = {"1d", "5d"}
 LONG_TERM_INTERVALS = {"1wk", "1mo", "3mo"}
@@ -101,6 +103,20 @@ def _interval_category(interval: str) -> str:
     if interval in LONG_TERM_INTERVALS:
         return "long-term"
     raise ValueError(f"No strategy category mapping exists for interval '{interval}'")
+
+
+def _save_strategy_artifact(
+    result: analysis.StrategyBuildResult,
+    output_dir: Path | None = None,
+) -> Path:
+    """Persist generated strategy result as a deterministic JSON artifact."""
+
+    target_dir = output_dir or config.OUTPUTS_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+    safe_interval = result.interval.replace("/", "_")
+    artifact_path = target_dir / f"{STRATEGY_OUTPUT_PREFIX}_{result.ticker}_{safe_interval}.json"
+    artifact_path.write_text(json.dumps(result.to_dict(), indent=2), encoding="utf-8")
+    return artifact_path
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -277,10 +293,26 @@ def main(argv: list[str] | None = None) -> None:
 
         metadata = data.market_data_access.load_metadata(ticker=args.ticker, interval=args.interval)
         dataset = data.market_data_access.load_dataset(ticker=args.ticker, interval=args.interval)
+        category = args.category or _interval_category(args.interval)
+
+        try:
+            build_request = analysis.StrategyBuildRequest(
+                ticker=args.ticker,
+                interval=args.interval,
+                category=category,
+            )
+            result = analysis.trend_following_builder.build(build_request, dataset)
+        except ValueError as exc:
+            print(f"Failed to build strategy: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        artifact_path = _save_strategy_artifact(result)
         print(
-            "build-strategy scaffold is active. "
-            f"Loaded {len(dataset)} rows for {metadata.ticker} "
-            f"({metadata.interval}, fetched {metadata.fetched_at_utc})."
+            f"Built strategy {result.strategy_id} for {metadata.ticker} "
+            f"({metadata.interval}, rows={result.data_row_count}, status={result.status})."
+        )
+        print(
+            f"Saved strategy artifact to {artifact_path}"
         )
 
     else:

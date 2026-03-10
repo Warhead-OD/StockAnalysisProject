@@ -1,0 +1,31 @@
+{
+  "strategy_id": "trend_following_AAPL_1d",
+  "generated_at_utc": "2026-03-10T10:20:21Z",
+  "ticker": "AAPL",
+  "interval": "1d",
+  "category": "daily",
+  "data_row_count": 80,
+  "status": "generated",
+  "rules": {
+    "name": "Trend Following (Price Action)",
+    "style": "trend-following",
+    "direction": "long-only",
+    "entry_rule": "Enter long when close is above fast moving average and fast moving average is above slow moving average, then trigger on a breakout above recent swing high plus buffer.",
+    "exit_rule": "Exit long when close falls below fast moving average or when trend condition (fast MA above slow MA) is no longer true.",
+    "stop_loss_rule": "Set stop loss at entry price minus ATR multiplied by stop_atr_multiplier.",
+    "take_profit_rule": "Set take profit at entry price plus ATR multiplied by take_profit_atr_multiplier."
+  },
+  "parameters": {
+    "fast_window": 20,
+    "slow_window": 50,
+    "breakout_window": 20,
+    "atr_window": 14,
+    "stop_atr_multiplier": 1.9,
+    "take_profit_atr_multiplier": 3.2,
+    "trend_strength": 0.026954177897574125,
+    "breakout_level": 116.6,
+    "breakout_buffer": 0.15999999999999945,
+    "atr": 1.5999999999999943,
+    "max_position_value": null
+  }
+}
