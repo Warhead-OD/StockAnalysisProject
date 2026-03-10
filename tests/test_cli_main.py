@@ -13,6 +13,31 @@ import pandas as pd
 import pytest
 
 import src.cli.main as cli_main
+from src.data.market_models import MarketDatasetMetadata
+
+
+def _sample_market_df() -> pd.DataFrame:
+    """Build a small normalized market dataframe used across CLI tests."""
+
+    return pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "adj_close": [100.0, 101.0]})
+
+
+def _sample_metadata(*, ticker: str = "AAPL", interval: str = "1d") -> MarketDatasetMetadata:
+    """Build representative dataset metadata for CLI tests."""
+
+    return MarketDatasetMetadata(
+        ticker=ticker,
+        interval=interval,
+        period="5d",
+        start=None,
+        end=None,
+        auto_adjust=False,
+        prepost=False,
+        actions=False,
+        exchange_timezone="America/New_York",
+        fetched_at_utc="2026-03-10T00:00:00Z",
+        row_count=2,
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -24,6 +49,11 @@ def _stub_market_data_access(monkeypatch: pytest.MonkeyPatch) -> None:
         cli_main.data.market_data_access,
         "load_dataset",
         lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("load_dataset should not be called in this test")),
+    )
+    monkeypatch.setattr(
+        cli_main.data.market_data_access,
+        "load_metadata",
+        lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("load_metadata should not be called in this test")),
     )
 
 
