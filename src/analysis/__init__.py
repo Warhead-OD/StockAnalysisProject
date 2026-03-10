@@ -8,7 +8,15 @@ from __future__ import annotations
 
 import pandas as pd
 
-__all__ = ["metrics"]
+from .strategy_builder import trend_following_builder
+from .strategy_models import StrategyBuildRequest, StrategyBuildResult
+
+__all__ = [
+    "metrics",
+    "trend_following_builder",
+    "StrategyBuildRequest",
+    "StrategyBuildResult",
+]
 
 
 class _MetricsModule:
