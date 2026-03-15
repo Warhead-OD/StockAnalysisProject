@@ -225,4 +225,7 @@ downloads/latest_market_data_*.csv
 downloads/market/
 downloads/meta/
 
+# Local-only release drafting notes
+release-notes.local.md
+
 # End of https://www.toptal.com/developers/gitignore/api/windows,visualstudiocode,python
