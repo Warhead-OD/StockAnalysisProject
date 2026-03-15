@@ -668,11 +668,13 @@ def test_main_analyze_runs_refinement_scaffold(
     monkeypatch.setattr(cli_main.data.market, "get_loaded", lambda: market_df)
     monkeypatch.setattr(cli_main.analysis.metrics, "compute_all", lambda _df: {"sharpe_ratio": 1.0})
 
-    captured: dict[str, object] = {}
+    observed_request: cli_main.analysis.StrategyRefinementRequest | None = None
+    observed_payload: dict[str, object] | None = None
 
     def fake_refiner(*, request, strategy_report_df, market_df, strategy_payload):
-        captured["request"] = request
-        captured["payload"] = strategy_payload
+        nonlocal observed_request, observed_payload
+        observed_request = request
+        observed_payload = strategy_payload
         return cli_main.analysis.StrategyRefinementResult.scaffold(
             strategy_name=request.strategy_name,
             ticker=request.ticker,
@@ -695,9 +697,11 @@ def test_main_analyze_runs_refinement_scaffold(
     assert "sharpe_ratio: 1.0000" in out
     assert "Refinement scaffold: status=scaffold, suggestions=2, interval=1d" in out
     assert "scaffold summary" in out
-    assert captured["request"].strategy_name == "demo-strategy"
-    assert captured["request"].ticker == "SPY"
-    assert captured["payload"]["strategy_id"] == "trend_following_SPY_1d"
+    assert observed_request is not None
+    assert observed_payload is not None
+    assert observed_request.strategy_name == "demo-strategy"
+    assert observed_request.ticker == "SPY"
+    assert observed_payload["strategy_id"] == "trend_following_SPY_1d"
 
 
 def test_parse_args_export_thinkscript_command() -> None:
