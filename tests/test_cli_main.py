@@ -149,12 +149,51 @@ def test_main_load_calls_strategy_loader(monkeypatch: pytest.MonkeyPatch, capsys
         return pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "return": [0.1, -0.1]})
 
     monkeypatch.setattr(cli_main.data.strategy, "load_csv", fake_load_csv)
+    monkeypatch.setattr(cli_main, "_save_strategy_report_cache", lambda _df: Path("downloads/strategy_imports/cache.csv"))
 
     cli_main.main(["load", "--file", "report.csv"])
 
     out = capsys.readouterr().out
     assert observed["path"] == Path("report.csv")
     assert "Loaded strategy with 2 rows" in out
+
+
+def test_main_analyze_falls_back_to_strategy_cache_and_market_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Analyze should run across separate CLI invocations using strategy-cache and market-artifact fallbacks."""
+
+    strategy_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "return": [0.01, -0.02]})
+    market_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "adj_close": [100.0, 99.0]})
+
+    monkeypatch.setattr(
+        cli_main.data.strategy,
+        "get_loaded",
+        lambda: (_ for _ in ()).throw(RuntimeError("No strategy has been loaded yet")),
+    )
+    monkeypatch.setattr(cli_main, "_load_strategy_report_cache", lambda: strategy_df)
+
+    monkeypatch.setattr(
+        cli_main.data.market,
+        "get_loaded",
+        lambda: (_ for _ in ()).throw(RuntimeError("No market data has been fetched yet")),
+    )
+    monkeypatch.setattr(cli_main.data.market_data_access, "has_dataset", lambda **_kwargs: True)
+    monkeypatch.setattr(cli_main.data.market_data_access, "load_dataset", lambda **_kwargs: market_df)
+
+    monkeypatch.setattr(cli_main.analysis.metrics, "compute_all", lambda _df: {"sharpe_ratio": 0.5})
+    monkeypatch.setattr(
+        cli_main,
+        "_load_strategy_artifact_payload",
+        lambda *, ticker, interval: _sample_strategy_payload(ticker=ticker, interval=interval, category="daily"),
+    )
+
+    cli_main.main(["analyze", "demo-strategy", "AAPL", "--interval", "1d"])
+
+    out = capsys.readouterr().out
+    assert "sharpe_ratio: 0.5000" in out
+    assert "Refinement scaffold: status=scaffold" in out
 
 
 def test_main_fetch_passes_arguments(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:

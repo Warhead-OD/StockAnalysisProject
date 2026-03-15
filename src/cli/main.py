@@ -31,6 +31,8 @@ __all__ = ["main"]
 
 FETCH_EXPORT_DIR = Path("downloads")
 FETCH_EXPORT_PREFIX = "latest_market_data"
+STRATEGY_IMPORT_DIR = FETCH_EXPORT_DIR / "strategy_imports"
+STRATEGY_REPORT_CACHE_FILE = "latest_loaded_strategy_report.csv"
 FETCH_DELAY_MIN_SECONDS = 0.3
 FETCH_DELAY_MAX_SECONDS = 0.5
 STRATEGY_OUTPUT_PREFIX = "strategy_plan"
@@ -62,6 +64,58 @@ def _save_fetched_data(df: pd.DataFrame, ticker: str, output_dir: Path | None = 
     output_path = target_dir / f"{FETCH_EXPORT_PREFIX}_{safe_ticker}.csv"
     df.to_csv(output_path, index=False)
     return output_path
+
+
+def _strategy_report_cache_path() -> Path:
+    """Return path used to persist the latest loaded strategy report for analyze fallback."""
+
+    return STRATEGY_IMPORT_DIR / STRATEGY_REPORT_CACHE_FILE
+
+
+def _save_strategy_report_cache(df: pd.DataFrame) -> Path:
+    """Persist latest loaded strategy report so analyze can run across separate CLI invocations."""
+
+    cache_path = _strategy_report_cache_path()
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(cache_path, index=False)
+    return cache_path
+
+
+def _load_strategy_report_cache() -> pd.DataFrame | None:
+    """Load persisted strategy report cache if present."""
+
+    cache_path = _strategy_report_cache_path()
+    if not cache_path.exists():
+        return None
+    return pd.read_csv(cache_path)
+
+
+def _resolve_analyze_strategy_df() -> pd.DataFrame:
+    """Return loaded strategy report, falling back to persisted cache between CLI commands."""
+
+    try:
+        return data.strategy.get_loaded()
+    except RuntimeError:
+        cached = _load_strategy_report_cache()
+        if cached is not None:
+            return cached
+        raise RuntimeError(
+            "No strategy has been loaded yet. Run `load --file <strategy_csv>` first "
+            "(or ensure a cached strategy report exists)."
+        )
+
+
+def _resolve_analyze_market_df(*, ticker: str, interval: str) -> pd.DataFrame:
+    """Return loaded market data, falling back to persisted market artifacts between CLI commands."""
+
+    try:
+        return data.market.get_loaded()
+    except RuntimeError:
+        if data.market_data_access.has_dataset(ticker=ticker, interval=interval):
+            return data.market_data_access.load_dataset(ticker=ticker, interval=interval)
+        raise RuntimeError(
+            "No market data has been loaded yet. Run `fetch` first for this ticker/interval."
+        )
 
 
 def _print_fetch_output(df: pd.DataFrame, args: argparse.Namespace, ticker: str) -> None:
@@ -298,6 +352,7 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command == "load":
         strategy = data.strategy.load_csv(args.file)
+        _save_strategy_report_cache(strategy)
         print(f"Loaded strategy with {len(strategy)} rows")
         # store strategy in a temporary location; a more complete project
         # would persist it in memory or a cache.
@@ -333,8 +388,13 @@ def main(argv: list[str] | None = None) -> None:
                 time.sleep(random.uniform(FETCH_DELAY_MIN_SECONDS, FETCH_DELAY_MAX_SECONDS))
 
     elif args.command == "analyze":
-        strategy_df = data.strategy.get_loaded()
-        market_df = data.market.get_loaded()
+        try:
+            strategy_df = _resolve_analyze_strategy_df()
+            market_df = _resolve_analyze_market_df(ticker=args.ticker, interval=args.interval)
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+
         merged = strategy_df.merge(market_df, on="date")
         metrics = analysis.metrics.compute_all(merged)
         for name, value in metrics.items():

@@ -87,8 +87,6 @@ Output behavior:
 - If `--save` is provided, previous `latest_market_data_*.csv` snapshots are deleted once at the start of the run, then one CSV is saved per fetched ticker.
 - The CLI prefers persisted Parquet data for fetch display/export when available, and falls back to the immediate in-memory fetch result if artifacts are not yet present.
 
-Note: `10m` is not currently a native yfinance interval.
-
 ### `export-thinkscript`
 
 Converts a generated strategy artifact into a ThinkScript script file ready for import into Thinkorswim.
