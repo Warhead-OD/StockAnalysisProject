@@ -10,12 +10,17 @@ import pandas as pd
 
 from .strategy_builder import trend_following_builder
 from .strategy_models import StrategyBuildRequest, StrategyBuildResult
+from .thinkscript_exporter import export_thinkscript_scaffold
+from .thinkscript_models import ThinkScriptExportRequest, ThinkScriptExportResult
 
 __all__ = [
     "metrics",
     "trend_following_builder",
     "StrategyBuildRequest",
     "StrategyBuildResult",
+    "ThinkScriptExportRequest",
+    "ThinkScriptExportResult",
+    "export_thinkscript_scaffold",
 ]
 
 

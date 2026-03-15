@@ -34,6 +34,7 @@ FETCH_EXPORT_PREFIX = "latest_market_data"
 FETCH_DELAY_MIN_SECONDS = 0.3
 FETCH_DELAY_MAX_SECONDS = 0.5
 STRATEGY_OUTPUT_PREFIX = "strategy_plan"
+THINKSCRIPT_OUTPUT_PREFIX = "thinkscript"
 INTRADAY_INTERVALS = {"1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h"}
 DAILY_INTERVALS = {"1d", "5d"}
 LONG_TERM_INTERVALS = {"1wk", "1mo", "3mo"}
@@ -117,6 +118,20 @@ def _save_strategy_artifact(
     artifact_path = target_dir / f"{STRATEGY_OUTPUT_PREFIX}_{result.ticker}_{safe_interval}.json"
     artifact_path.write_text(json.dumps(result.to_dict(), indent=2), encoding="utf-8")
     return artifact_path
+
+
+def _strategy_artifact_path(*, ticker: str, interval: str) -> Path:
+    """Return deterministic strategy artifact path for ticker/interval."""
+
+    safe_interval = interval.replace("/", "_")
+    return config.OUTPUTS_DIR / f"{STRATEGY_OUTPUT_PREFIX}_{ticker.upper()}_{safe_interval}.json"
+
+
+def _thinkscript_output_path(*, ticker: str, interval: str, export_mode: str) -> Path:
+    """Return deterministic ThinkScript text output path."""
+
+    safe_interval = interval.replace("/", "_")
+    return config.OUTPUTS_DIR / f"{THINKSCRIPT_OUTPUT_PREFIX}_{ticker.upper()}_{safe_interval}_{export_mode}.txt"
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -206,6 +221,30 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--category",
         choices=["intraday", "daily", "long-term"],
         help="Optional strategy category label for simplified workflow",
+    )
+
+    # export thinkscript (scaffold)
+    export_thinkscript = sub.add_parser(
+        "export-thinkscript",
+        help="Export ThinkScript from a generated strategy artifact (scaffold)",
+    )
+    export_thinkscript.add_argument("ticker", help="Ticker symbol for the strategy artifact")
+    export_thinkscript.add_argument(
+        "--interval",
+        required=True,
+        choices=data.market.SUPPORTED_INTERVALS,
+        help="Interval used by the generated strategy artifact",
+    )
+    export_thinkscript.add_argument(
+        "--mode",
+        choices=["strategy", "study"],
+        default="strategy",
+        help="ThinkScript export mode (default: strategy)",
+    )
+    export_thinkscript.add_argument(
+        "--disable-orders",
+        action="store_true",
+        help="Disable order lines in the exported script scaffold",
     )
 
     args = parser.parse_args(argv)
@@ -314,6 +353,36 @@ def main(argv: list[str] | None = None) -> None:
         print(
             f"Saved strategy artifact to {artifact_path}"
         )
+
+    elif args.command == "export-thinkscript":
+        strategy_artifact = _strategy_artifact_path(ticker=args.ticker, interval=args.interval)
+        thinkscript_output = _thinkscript_output_path(
+            ticker=args.ticker,
+            interval=args.interval,
+            export_mode=args.mode,
+        )
+
+        request = analysis.ThinkScriptExportRequest(
+            ticker=args.ticker,
+            interval=args.interval,
+            export_mode=args.mode,
+            include_orders=not args.disable_orders,
+        )
+        try:
+            result = analysis.export_thinkscript_scaffold(
+                request=request,
+                strategy_artifact_path=strategy_artifact,
+                output_path=thinkscript_output,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"Failed to export ThinkScript: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        print(
+            f"Exported ThinkScript scaffold for {result.ticker} "
+            f"({result.interval}, mode={result.export_mode}, status={result.status})."
+        )
+        print(f"Saved ThinkScript artifact to {result.output_path}")
 
     else:
         print("Unknown command", file=sys.stderr)
