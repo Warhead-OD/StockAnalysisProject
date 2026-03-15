@@ -6,6 +6,8 @@ Currently implements a few basic return‑based metrics.
 
 from __future__ import annotations
 
+import math
+
 import pandas as pd
 
 from .strategy_builder import trend_following_builder
@@ -55,13 +57,24 @@ class _MetricsModule:
             raise ValueError("DataFrame must contain a 'return' column for strategy returns")
 
         # Daily returns
-        returns = df["return"].dropna()
-        annualized_return = (1 + returns.mean()) ** 252 - 1
-        volatility = returns.std() * (252 ** 0.5)
-        sharpe = annualized_return / volatility if volatility else float("nan")
+        returns = pd.to_numeric(df["return"], errors="coerce").dropna()
+        daily_mean = float(returns.mean()) if not returns.empty else float("nan")
+
+        # Use log/expm1 formulation and guard invalid domains to avoid overflow warnings.
+        if math.isfinite(daily_mean) and daily_mean > -1:
+            annualized_return = math.expm1(math.log1p(daily_mean) * 252)
+        else:
+            annualized_return = float("nan")
+
+        volatility = float(returns.std() * (252 ** 0.5)) if not returns.empty else float("nan")
+        sharpe = (
+            annualized_return / volatility
+            if math.isfinite(annualized_return) and math.isfinite(volatility) and volatility > 0
+            else float("nan")
+        )
 
         return {
-            "daily_mean_return": returns.mean(),
+            "daily_mean_return": daily_mean,
             "annualized_return": annualized_return,
             "annualized_volatility": volatility,
             "sharpe_ratio": sharpe,

@@ -41,6 +41,19 @@ def _parse_money_like_value(value: object) -> float | None:
         return None
     return -amount if negative else amount
 
+
+def _derive_fractional_returns(df: pd.DataFrame) -> pd.Series:
+    """Derive fractional per-trade returns from Trade P/L and position notional."""
+
+    if not {"Trade P/L", "Amount", "Price"}.issubset(df.columns):
+        return pd.Series([None] * len(df), index=df.index, dtype="float64")
+
+    trade_pl = df["Trade P/L"].map(_parse_money_like_value)
+    price = df["Price"].map(_parse_money_like_value)
+    amount = pd.to_numeric(df["Amount"], errors="coerce").abs()
+    notional = (amount * price).where(lambda s: s > 0)
+    return trade_pl / notional
+
 # Strategy sub‑module
 class _StrategyModule:
     """
@@ -71,14 +84,21 @@ class _StrategyModule:
         # Drop extra trailing delimiter columns (e.g. "Unnamed: 9").
         df = df.loc[:, ~df.columns.str.contains(r"^Unnamed", regex=True)]
 
-        # Normalise column names for tests.
-        df.rename(columns={"Date/Time": "date", "P/L": "return"}, inplace=True)
+        # Normalise date column name used by downstream joins.
+        df.rename(columns={"Date/Time": "date"}, inplace=True)
 
         # Remove non-trade summary/footer rows that have no valid timestamp.
         df = df[df["date"].notna()].copy()
 
-        # Parse return values like "$95.00" or "($0.74)" into floats.
-        df["return"] = df["return"].map(_parse_money_like_value)
+        # Prefer fractional return derivation from per-trade P/L and notional.
+        derived_return = _derive_fractional_returns(df)
+        if derived_return.notna().any():
+            df["return"] = derived_return
+        elif "P/L" in df.columns:
+            # Fallback for older report layouts without Trade P/L.
+            df["return"] = df["P/L"].map(_parse_money_like_value)
+        else:
+            df["return"] = pd.Series([None] * len(df), index=df.index, dtype="float64")
 
         _loaded_strategy = df
         return df

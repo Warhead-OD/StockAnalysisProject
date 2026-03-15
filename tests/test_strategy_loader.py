@@ -47,6 +47,7 @@ def test_load_csv_parses_return_values_to_numeric(tmp_path) -> None:
 
     assert pd.api.types.is_float_dtype(df["return"])
     assert df["return"].notna().any()
+    assert (df["return"].dropna().abs() < 1).all()
 
 
 def test_load_csv_missing_file():
