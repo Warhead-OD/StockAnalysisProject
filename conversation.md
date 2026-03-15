@@ -125,3 +125,24 @@
   * Extended CLI tests in `tests/test_cli_main.py` with parse, success, and missing-artifact failure paths for `export-thinkscript`.
   * Extended autouse stub fixture to guard `export_thinkscript_scaffold` across all tests by default.
   * Current suite status after C1 updates: all tests passing (`54 passed`).
+
+- **D1 Analyze Refinement Flow (March 2026)**:
+  * Added new refinement contracts and module:
+    - `src/analysis/strategy_refinement_models.py` — `StrategyRefinementRequest`, `StrategyRefinementResult`
+    - `src/analysis/strategy_refiner.py` — `refine_strategy_from_report_scaffold(...)`
+  * `analyze` command now supports `--interval` (default `1d`) for resolving strategy artifacts during refinement.
+  * Added strategy artifact loader helper in CLI:
+    - `_load_strategy_artifact_payload(ticker, interval)`
+  * Analyze flow now:
+    - computes and prints baseline metrics (existing behavior)
+    - attempts to load `outputs/strategy_plan_<TICKER>_<INTERVAL>.json`
+    - runs refinement scaffold and prints status, summary, and recommendation bullet lines
+  * Refinement recommendation logic is now artifact-aware:
+    - uses artifact parameters when available (`fast_window`, `slow_window`, `breakout_window`, ATR multipliers)
+    - branches suggestions using report win-rate and expectancy
+    - falls back to guidance when artifact is missing
+  * Added/expanded test coverage:
+    - `tests/test_strategy_refiner.py`: artifact-present, artifact-missing, low win-rate, positive expectancy, invalid-parameter fallback
+    - `tests/test_cli_main.py`: analyze interval parsing, analyze refinement invocation, non-fatal skip path when artifact loading fails
+  * Added dedicated D1.1a fix step to resolve typing/error issue in `tests/test_cli_main.py` capture assertions.
+  * Current suite status after D1 updates: all tests passing (`62 passed`).

@@ -135,6 +135,32 @@ Generated script contents:
 python -m src.cli.main analyze demo-strategy SPY
 ```
 
+Run `analyze` with an explicit interval when you want artifact-aware refinement suggestions:
+
+```bash
+python -m src.cli.main analyze demo-strategy SPY --interval 1d
+```
+
+Current behavior:
+- Loads currently in-memory strategy report data and market data.
+- Merges on `date` and prints baseline metrics (`daily_mean_return`, `annualized_return`, `annualized_volatility`, `sharpe_ratio`).
+- Attempts to load a matching generated strategy artifact from:
+  - `outputs/strategy_plan_<TICKER>_<INTERVAL>.json`
+- Runs refinement recommendation logic and prints:
+  - one refinement status line
+  - one refinement summary line (row counts and artifact presence)
+  - bullet recommendations tied to artifact parameters and report behavior
+
+Analyze flags:
+- `strategy` (positional): strategy name label used in refinement metadata
+- `ticker` (positional): ticker symbol used for artifact resolution
+- `--interval` (optional, default `1d`): interval for locating the strategy artifact
+
+Refinement recommendation behavior:
+- With a matching artifact: suggestions are parameter-aware (MA windows, breakout lookback, ATR multipliers) and adjusted by report win-rate/expectancy.
+- Without an artifact: `analyze` still prints metrics and emits scaffold guidance to run `build-strategy` first.
+- If artifact payload parsing fails: metrics still print, and refinement is skipped with a non-fatal stderr warning.
+
 ### `build-strategy`
 
 Builds strategy artifacts from previously fetched market data for one ticker/interval pair.
