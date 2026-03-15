@@ -645,6 +645,83 @@ def test_main_analyze_merges_and_prints_metrics(monkeypatch: pytest.MonkeyPatch,
     assert "annualized_return: 0.1111" in out
 
 
+def test_parse_args_export_thinkscript_command() -> None:
+    """Test parsing export-thinkscript command with defaults and explicit flags."""
+
+    args = cli_main._parse_args(["export-thinkscript", "AAPL", "--interval", "1d"])
+
+    assert args.command == "export-thinkscript"
+    assert args.ticker == "AAPL"
+    assert args.interval == "1d"
+    assert args.mode == "strategy"
+    assert args.disable_orders is False
+
+
+def test_parse_args_export_thinkscript_study_mode_and_disable_orders() -> None:
+    """Test parsing export-thinkscript with --mode study and --disable-orders."""
+
+    args = cli_main._parse_args(
+        ["export-thinkscript", "SPY", "--interval", "1wk", "--mode", "study", "--disable-orders"]
+    )
+
+    assert args.mode == "study"
+    assert args.disable_orders is True
+
+
+def test_main_export_thinkscript_calls_exporter_and_prints_result(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test export-thinkscript routes to exporter and prints success summary."""
+
+    fake_result = ThinkScriptExportResult.generated(
+        ticker="AAPL",
+        interval="1d",
+        export_mode="strategy",
+        include_orders=True,
+        output_path="outputs/thinkscript_AAPL_1d_strategy.txt",
+        strategy_id="trend_following_AAPL_1d",
+        generated_at="2026-03-15T00:00:00Z",
+    )
+
+    monkeypatch.setattr(
+        cli_main.analysis,
+        "export_thinkscript_scaffold",
+        lambda *, request, strategy_artifact_path, output_path: fake_result,
+    )
+
+    cli_main.main(["export-thinkscript", "AAPL", "--interval", "1d"])
+
+    out = capsys.readouterr().out
+    assert "Exported ThinkScript for AAPL" in out
+    assert "1d" in out
+    assert "mode=strategy" in out
+    assert "status=generated" in out
+    assert "outputs/thinkscript_AAPL_1d_strategy.txt" in out
+
+
+def test_main_export_thinkscript_missing_artifact_exits(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Test export-thinkscript exits with code 1 when strategy artifact is missing."""
+
+    monkeypatch.setattr(
+        cli_main.analysis,
+        "export_thinkscript_scaffold",
+        lambda *, request, strategy_artifact_path, output_path: (_ for _ in ()).throw(
+            FileNotFoundError("Strategy artifact not found: outputs/strategy_plan_AAPL_1d.json")
+        ),
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main.main(["export-thinkscript", "AAPL", "--interval", "1d"])
+
+    err = capsys.readouterr().err
+    assert exc.value.code == 1
+    assert "Failed to export ThinkScript" in err
+
+
 def test_main_unknown_command_exits(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     """
     Test that main() exits with error for unknown command.
