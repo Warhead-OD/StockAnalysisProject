@@ -20,6 +20,27 @@ _loaded_market: pd.DataFrame | None = None
 
 __all__ = ["strategy", "market", "market_data_access"]
 
+
+def _parse_money_like_value(value: object) -> float | None:
+    """Convert values like '$95.00' or '($0.74)' into floats."""
+
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    negative = text.startswith("(") and text.endswith(")")
+    cleaned = text.replace("$", "").replace(",", "").replace("(", "").replace(")", "")
+    try:
+        amount = float(cleaned)
+    except ValueError:
+        return None
+    return -amount if negative else amount
+
 # Strategy sub‑module
 class _StrategyModule:
     """
@@ -46,8 +67,19 @@ class _StrategyModule:
             parse_dates=["Date/Time"],
             date_format="%m/%d/%y %I:%M %p",
         )
-        # Normalise column names for tests
+
+        # Drop extra trailing delimiter columns (e.g. "Unnamed: 9").
+        df = df.loc[:, ~df.columns.str.contains(r"^Unnamed", regex=True)]
+
+        # Normalise column names for tests.
         df.rename(columns={"Date/Time": "date", "P/L": "return"}, inplace=True)
+
+        # Remove non-trade summary/footer rows that have no valid timestamp.
+        df = df[df["date"].notna()].copy()
+
+        # Parse return values like "$95.00" or "($0.74)" into floats.
+        df["return"] = df["return"].map(_parse_money_like_value)
+
         _loaded_strategy = df
         return df
 

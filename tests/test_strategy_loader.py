@@ -33,6 +33,20 @@ def test_load_csv_success(tmp_path):
     assert not df.empty
     assert "date" in df.columns
     assert "return" in df.columns
+    assert df["date"].notna().all()
+    assert not any(column.startswith("Unnamed") for column in df.columns)
+
+
+def test_load_csv_parses_return_values_to_numeric(tmp_path) -> None:
+    """Ensure money-like P/L values are converted to numeric return floats."""
+
+    temp_file = tmp_path / "sample.csv"
+    shutil.copy2(SAMPLE_CSV, temp_file)
+
+    df = strategy.load_csv(temp_file)
+
+    assert pd.api.types.is_float_dtype(df["return"])
+    assert df["return"].notna().any()
 
 
 def test_load_csv_missing_file():
