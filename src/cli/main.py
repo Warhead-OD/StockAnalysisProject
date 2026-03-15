@@ -118,6 +118,43 @@ def _resolve_analyze_market_df(*, ticker: str, interval: str) -> pd.DataFrame:
         )
 
 
+def _normalize_analyze_date_columns(
+    *,
+    strategy_df: pd.DataFrame,
+    market_df: pd.DataFrame,
+    interval: str,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Normalize strategy/market date keys so merge uses compatible types.
+
+    Daily and higher-timeframe intervals merge on date-only keys.
+    Intraday intervals merge on second-resolution timestamp keys.
+    """
+
+    if "date" not in strategy_df.columns:
+        raise ValueError("Strategy dataframe is missing required 'date' column")
+    if "date" not in market_df.columns:
+        raise ValueError("Market dataframe is missing required 'date' column")
+
+    strategy = strategy_df.copy()
+    market = market_df.copy()
+    strategy_dates = pd.to_datetime(strategy["date"], errors="coerce")
+    market_dates = pd.to_datetime(market["date"], errors="coerce")
+
+    if strategy_dates.isna().any():
+        raise ValueError("Strategy dataframe contains invalid date values")
+    if market_dates.isna().any():
+        raise ValueError("Market dataframe contains invalid date values")
+
+    if interval in DAILY_INTERVALS or interval in LONG_TERM_INTERVALS:
+        strategy["date"] = strategy_dates.dt.strftime("%Y-%m-%d")
+        market["date"] = market_dates.dt.strftime("%Y-%m-%d")
+    else:
+        strategy["date"] = strategy_dates.dt.strftime("%Y-%m-%d %H:%M:%S")
+        market["date"] = market_dates.dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    return strategy, market
+
+
 def _print_fetch_output(df: pd.DataFrame, args: argparse.Namespace, ticker: str) -> None:
     """Print fetch results according to the selected output controls."""
 
@@ -391,7 +428,12 @@ def main(argv: list[str] | None = None) -> None:
         try:
             strategy_df = _resolve_analyze_strategy_df()
             market_df = _resolve_analyze_market_df(ticker=args.ticker, interval=args.interval)
-        except RuntimeError as exc:
+            strategy_df, market_df = _normalize_analyze_date_columns(
+                strategy_df=strategy_df,
+                market_df=market_df,
+                interval=args.interval,
+            )
+        except (RuntimeError, ValueError) as exc:
             print(str(exc), file=sys.stderr)
             sys.exit(1)
 

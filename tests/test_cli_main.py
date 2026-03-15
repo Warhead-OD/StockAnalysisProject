@@ -665,7 +665,7 @@ def test_main_analyze_merges_and_prints_metrics(monkeypatch: pytest.MonkeyPatch,
     Test that main() merges strategy and market data and prints metrics for 'analyze' command.
     """
 
-    strategy_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "return": [0.01, -0.02]})
+    strategy_df = pd.DataFrame({"date": pd.to_datetime(["2026-01-01", "2026-01-02"]), "return": [0.01, -0.02]})
     market_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "adj_close": [100.0, 99.0]})
 
     monkeypatch.setattr(cli_main.data.strategy, "get_loaded", lambda: strategy_df)
@@ -673,6 +673,7 @@ def test_main_analyze_merges_and_prints_metrics(monkeypatch: pytest.MonkeyPatch,
 
     def fake_compute_all(df: pd.DataFrame) -> dict[str, float]:
         assert list(df.columns) == ["date", "return", "adj_close"]
+        assert len(df) == 2
         return {"sharpe_ratio": 1.23456, "annualized_return": 0.11111}
 
     monkeypatch.setattr(cli_main.analysis.metrics, "compute_all", fake_compute_all)
