@@ -226,7 +226,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     # export thinkscript (scaffold)
     export_thinkscript = sub.add_parser(
         "export-thinkscript",
-        help="Export ThinkScript from a generated strategy artifact (scaffold)",
+        help="Export ThinkScript from a generated strategy artifact",
     )
     export_thinkscript.add_argument("ticker", help="Ticker symbol for the strategy artifact")
     export_thinkscript.add_argument(
@@ -379,7 +379,7 @@ def main(argv: list[str] | None = None) -> None:
             sys.exit(1)
 
         print(
-            f"Exported ThinkScript scaffold for {result.ticker} "
+            f"Exported ThinkScript for {result.ticker} "
             f"({result.interval}, mode={result.export_mode}, status={result.status})."
         )
         print(f"Saved ThinkScript artifact to {result.output_path}")

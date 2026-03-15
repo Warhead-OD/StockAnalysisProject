@@ -41,7 +41,7 @@ class ThinkScriptExportResult:
         output_path: str,
         strategy_id: str | None,
     ) -> "ThinkScriptExportResult":
-        """Create a scaffold export result before full template rendering is implemented."""
+        """Create a scaffold export result (status=scaffold)."""
 
         return cls(
             ticker=ticker,
@@ -51,6 +51,31 @@ class ThinkScriptExportResult:
             output_path=output_path,
             exported_at_utc=datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),
             status="scaffold",
+            strategy_id=strategy_id,
+        )
+
+    @classmethod
+    def generated(
+        cls,
+        *,
+        ticker: str,
+        interval: str,
+        export_mode: str,
+        include_orders: bool,
+        output_path: str,
+        strategy_id: str | None,
+        generated_at: str,
+    ) -> "ThinkScriptExportResult":
+        """Create a result for a fully rendered ThinkScript export (status=generated)."""
+
+        return cls(
+            ticker=ticker,
+            interval=interval,
+            export_mode=export_mode,
+            include_orders=include_orders,
+            output_path=output_path,
+            exported_at_utc=generated_at,
+            status="generated",
             strategy_id=strategy_id,
         )
 
