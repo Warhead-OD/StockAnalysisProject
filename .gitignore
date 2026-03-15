@@ -218,4 +218,11 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
+# Project-generated artifacts
+outputs/strategy_plan_*.json
+outputs/thinkscript_*.txt
+downloads/latest_market_data_*.csv
+downloads/market/
+downloads/meta/
+
 # End of https://www.toptal.com/developers/gitignore/api/windows,visualstudiocode,python
