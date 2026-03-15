@@ -25,6 +25,8 @@ def test_refine_strategy_from_report_scaffold_with_artifact() -> None:
     assert result.strategy_id == "trend_following_SPY_1d"
     assert result.suggestion_count == 3
     assert "strategy_artifact=present" in result.summary
+    assert "fast/slow windows" in result.suggestions[0]
+    assert "lookback=20" in result.suggestions[1]
 
 
 def test_refine_strategy_from_report_scaffold_without_artifact() -> None:
@@ -46,3 +48,4 @@ def test_refine_strategy_from_report_scaffold_without_artifact() -> None:
     assert result.suggestion_count == 3
     assert "merged_rows=0" in result.summary
     assert "strategy_artifact=missing" in result.summary
+    assert "No generated strategy artifact found" in result.suggestions[0]

@@ -358,6 +358,8 @@ def main(argv: list[str] | None = None) -> None:
                 f"suggestions={refinement.suggestion_count}, interval={refinement.interval}"
             )
             print(refinement.summary)
+            for suggestion in refinement.suggestions:
+                print(f"- {suggestion}")
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             print(f"Skipped refinement scaffold: {exc}", file=sys.stderr)
 

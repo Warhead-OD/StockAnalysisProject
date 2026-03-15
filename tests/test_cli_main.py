@@ -697,6 +697,8 @@ def test_main_analyze_runs_refinement_scaffold(
     assert "sharpe_ratio: 1.0000" in out
     assert "Refinement scaffold: status=scaffold, suggestions=2, interval=1d" in out
     assert "scaffold summary" in out
+    assert "- one" in out
+    assert "- two" in out
     assert observed_request is not None
     assert observed_payload is not None
     assert observed_request.strategy_name == "demo-strategy"
