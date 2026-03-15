@@ -706,6 +706,33 @@ def test_main_analyze_runs_refinement_scaffold(
     assert observed_payload["strategy_id"] == "trend_following_SPY_1d"
 
 
+def test_main_analyze_skips_refinement_when_artifact_load_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Analyze still prints metrics when strategy artifact payload cannot be loaded."""
+
+    strategy_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "return": [0.01, -0.02]})
+    market_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "adj_close": [100.0, 99.0]})
+
+    monkeypatch.setattr(cli_main.data.strategy, "get_loaded", lambda: strategy_df)
+    monkeypatch.setattr(cli_main.data.market, "get_loaded", lambda: market_df)
+    monkeypatch.setattr(cli_main.analysis.metrics, "compute_all", lambda _df: {"sharpe_ratio": 0.5})
+    monkeypatch.setattr(
+        cli_main,
+        "_load_strategy_artifact_payload",
+        lambda *, ticker, interval: (_ for _ in ()).throw(ValueError("bad artifact payload")),
+    )
+
+    cli_main.main(["analyze", "demo-strategy", "SPY", "--interval", "1d"])
+
+    captured = capsys.readouterr()
+    out = captured.out
+    err = captured.err
+    assert "sharpe_ratio: 0.5000" in out
+    assert "Skipped refinement scaffold: bad artifact payload" in err
+
+
 def test_parse_args_export_thinkscript_command() -> None:
     """Test parsing export-thinkscript command with defaults and explicit flags."""
 
