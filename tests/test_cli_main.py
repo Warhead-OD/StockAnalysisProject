@@ -14,6 +14,8 @@ import pandas as pd
 import pytest
 
 import src.cli.main as cli_main
+import src.analysis as analysis
+from src.analysis.thinkscript_models import ThinkScriptExportRequest, ThinkScriptExportResult
 from src.data.market_models import MarketDatasetMetadata
 
 
@@ -31,6 +33,47 @@ def _sample_market_df() -> pd.DataFrame:
             "adj_close": [100.4 + idx * 0.2 for idx in range(rows)],
         }
     )
+
+
+def _sample_strategy_payload(
+    *,
+    ticker: str = "AAPL",
+    interval: str = "1d",
+    category: str = "daily",
+) -> dict[str, object]:
+    """Build a minimal strategy artifact payload dict for CLI tests."""
+
+    return {
+        "strategy_id": f"trend_following_{ticker.upper()}_{interval}",
+        "generated_at_utc": "2026-03-10T10:20:21Z",
+        "ticker": ticker,
+        "interval": interval,
+        "category": category,
+        "data_row_count": 80,
+        "status": "generated",
+        "rules": {
+            "name": "Trend Following (Price Action)",
+            "style": "trend-following",
+            "direction": "long-only",
+            "entry_rule": "Enter long when close is above fast MA and fast MA is above slow MA, breakout above swing high.",
+            "exit_rule": "Exit long when close falls below fast MA.",
+            "stop_loss_rule": "Stop at entry minus ATR * stop_atr_multiplier.",
+            "take_profit_rule": "TP at entry plus ATR * take_profit_atr_multiplier.",
+        },
+        "parameters": {
+            "fast_window": 20,
+            "slow_window": 50,
+            "breakout_window": 20,
+            "atr_window": 14,
+            "stop_atr_multiplier": 1.9,
+            "take_profit_atr_multiplier": 3.2,
+            "trend_strength": 0.027,
+            "breakout_level": 116.6,
+            "breakout_buffer": 0.16,
+            "atr": 1.6,
+            "max_position_value": None,
+        },
+    }
 
 
 def _sample_metadata(*, ticker: str = "AAPL", interval: str = "1d") -> MarketDatasetMetadata:
@@ -53,7 +96,7 @@ def _sample_metadata(*, ticker: str = "AAPL", interval: str = "1d") -> MarketDat
 
 @pytest.fixture(autouse=True)
 def _stub_market_data_access(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Default to in-memory fetch frames unless a test overrides data-access behavior."""
+    """Default stubs for data-access and ThinkScript export unless a test overrides them."""
 
     monkeypatch.setattr(cli_main.data.market_data_access, "has_dataset", lambda **_kwargs: False)
     monkeypatch.setattr(
@@ -65,6 +108,20 @@ def _stub_market_data_access(monkeypatch: pytest.MonkeyPatch) -> None:
         cli_main.data.market_data_access,
         "load_metadata",
         lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("load_metadata should not be called in this test")),
+    )
+
+    def _stub_export_thinkscript_scaffold(
+        *,
+        request: ThinkScriptExportRequest,
+        strategy_artifact_path: Path,
+        output_path: Path,
+    ) -> ThinkScriptExportResult:
+        raise RuntimeError("export_thinkscript_scaffold should not be called in this test")
+
+    monkeypatch.setattr(
+        cli_main.analysis,
+        "export_thinkscript_scaffold",
+        _stub_export_thinkscript_scaffold,
     )
 
 
