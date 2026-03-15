@@ -101,3 +101,27 @@
 ---
 
 > **Note**: The above notes capture the key decisions and setup steps from this session. They can be referenced or expanded upon as the project evolves.
+
+- **C1 ThinkScript Exporter v1 (March 2026)**:
+  * Added new CLI command: `export-thinkscript`.
+  * Required arguments:
+    - positional `ticker`
+    - required `--interval`
+  * Optional flags: `--mode` (`strategy` | `study`, default `strategy`), `--disable-orders`.
+  * Added new analysis modules:
+    - `src/analysis/thinkscript_models.py` — `ThinkScriptExportRequest`, `ThinkScriptExportResult` (with `scaffold()` and `generated()` classmethods)
+    - `src/analysis/thinkscript_exporter.py` — `_build_thinkscript_source()` renderer + `export_thinkscript_scaffold()` function
+  * ThinkScript output is a fully rendered script with:
+    - Header comment block (strategy ID, ticker/interval/mode/orders, generation timestamp)
+    - `declare upper;`
+    - Six `input` declarations (fast/slow MA windows, breakout lookback, ATR window, stop and TP ATR multipliers)
+    - `def` blocks for MAs, ATR, swing-high, entry/exit conditions
+    - `plot BuyArrow` / `plot SellArrow` with `ARROW_UP` / `ARROW_DOWN` painting strategies
+    - `plot FastMALine` / `plot SlowMALine` overlay plots
+    - `AddOrder()` block — present only when `mode=strategy` and `--disable-orders` is not set
+  * Output artifact naming: `outputs/thinkscript_<TICKER>_<INTERVAL>_<MODE>.txt`.
+  * `export_thinkscript_scaffold()` raises `FileNotFoundError` if the strategy artifact does not exist.
+  * Added dedicated unit tests in `tests/test_thinkscript_exporter.py` covering template rendering, order block inclusion/suppression, study mode, missing artifact, and directory creation.
+  * Extended CLI tests in `tests/test_cli_main.py` with parse, success, and missing-artifact failure paths for `export-thinkscript`.
+  * Extended autouse stub fixture to guard `export_thinkscript_scaffold` across all tests by default.
+  * Current suite status after C1 updates: all tests passing (`54 passed`).

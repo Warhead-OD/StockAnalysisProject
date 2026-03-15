@@ -134,6 +134,19 @@ def _thinkscript_output_path(*, ticker: str, interval: str, export_mode: str) ->
     return config.OUTPUTS_DIR / f"{THINKSCRIPT_OUTPUT_PREFIX}_{ticker.upper()}_{safe_interval}_{export_mode}.txt"
 
 
+def _load_strategy_artifact_payload(*, ticker: str, interval: str) -> dict[str, object] | None:
+    """Load strategy artifact payload for refinement workflows when available."""
+
+    strategy_path = _strategy_artifact_path(ticker=ticker, interval=interval)
+    if not strategy_path.exists():
+        return None
+
+    payload = json.loads(strategy_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"Invalid strategy artifact format in {strategy_path}")
+    return payload
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """
     Parse command-line arguments for the stock analysis CLI.
@@ -204,6 +217,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     analyze = sub.add_parser("analyze", help="Run metrics on a loaded strategy and market data")
     analyze.add_argument("strategy", help="Strategy name as found in the loaded CSV")
     analyze.add_argument("ticker", help="Ticker to join with the strategy data")
+    analyze.add_argument(
+        "--interval",
+        default="1d",
+        choices=data.market.SUPPORTED_INTERVALS,
+        help="Interval used to resolve a generated strategy artifact for refinement (default: 1d)",
+    )
 
     # build strategy (scaffold)
     build_strategy = sub.add_parser(
@@ -320,6 +339,27 @@ def main(argv: list[str] | None = None) -> None:
         metrics = analysis.metrics.compute_all(merged)
         for name, value in metrics.items():
             print(f"{name}: {value:.4f}")
+
+        try:
+            strategy_payload = _load_strategy_artifact_payload(ticker=args.ticker, interval=args.interval)
+            refinement_request = analysis.StrategyRefinementRequest(
+                strategy_name=args.strategy,
+                ticker=args.ticker,
+                interval=args.interval,
+            )
+            refinement = analysis.refine_strategy_from_report_scaffold(
+                request=refinement_request,
+                strategy_report_df=strategy_df,
+                market_df=market_df,
+                strategy_payload=strategy_payload,
+            )
+            print(
+                f"Refinement scaffold: status={refinement.status}, "
+                f"suggestions={refinement.suggestion_count}, interval={refinement.interval}"
+            )
+            print(refinement.summary)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            print(f"Skipped refinement scaffold: {exc}", file=sys.stderr)
 
     elif args.command == "build-strategy":
         if not data.market_data_access.has_dataset(ticker=args.ticker, interval=args.interval):

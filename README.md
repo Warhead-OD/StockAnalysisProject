@@ -89,6 +89,46 @@ Output behavior:
 
 Note: `10m` is not currently a native yfinance interval.
 
+### `export-thinkscript`
+
+Converts a generated strategy artifact into a ThinkScript script file ready for import into Thinkorswim.
+
+Requires a strategy artifact produced by `build-strategy`.
+
+```bash
+python -m src.cli.main export-thinkscript AAPL --interval 1d
+```
+
+Export as a study (no order execution blocks):
+
+```bash
+python -m src.cli.main export-thinkscript AAPL --interval 1d --mode study
+```
+
+Suppress `AddOrder` calls even in strategy mode:
+
+```bash
+python -m src.cli.main export-thinkscript AAPL --interval 1d --disable-orders
+```
+
+Flags:
+- `ticker` (positional): single ticker symbol matching an existing strategy artifact
+- `--interval` (required): interval matching the strategy artifact
+- `--mode`: `strategy` (default) or `study`
+- `--disable-orders`: suppress `AddOrder()` calls from the output
+
+Output artifact:
+- `outputs/thinkscript_<TICKER>_<INTERVAL>_<MODE>.txt`
+
+Generated script contents:
+- Header comment block with strategy ID, ticker/interval/mode/orders flag, and generation timestamp
+- `declare upper;`
+- Six `input` declarations wired to strategy parameters (fast/slow MA windows, breakout lookback, ATR window, stop and take-profit ATR multipliers)
+- `def` blocks for `fastMA`, `slowMA`, `atr`, `swingHigh`, `trendUp`, `breakoutEntry`, `entrySignal`, `exitSignal`
+- `plot BuyArrow` / `plot SellArrow` with arrow painting strategies
+- `plot FastMALine` / `plot SlowMALine` overlay plots
+- `AddOrder(BUY_TO_OPEN, ...)` / `AddOrder(SELL_TO_CLOSE, ...)` — present only when `mode=strategy` and orders are not disabled
+
 ### `analyze`
 
 ```bash

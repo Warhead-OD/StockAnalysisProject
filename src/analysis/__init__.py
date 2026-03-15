@@ -10,6 +10,8 @@ import pandas as pd
 
 from .strategy_builder import trend_following_builder
 from .strategy_models import StrategyBuildRequest, StrategyBuildResult
+from .strategy_refiner import refine_strategy_from_report_scaffold
+from .strategy_refinement_models import StrategyRefinementRequest, StrategyRefinementResult
 from .thinkscript_exporter import export_thinkscript_scaffold
 from .thinkscript_models import ThinkScriptExportRequest, ThinkScriptExportResult
 
@@ -18,6 +20,9 @@ __all__ = [
     "trend_following_builder",
     "StrategyBuildRequest",
     "StrategyBuildResult",
+    "StrategyRefinementRequest",
+    "StrategyRefinementResult",
+    "refine_strategy_from_report_scaffold",
     "ThinkScriptExportRequest",
     "ThinkScriptExportResult",
     "export_thinkscript_scaffold",

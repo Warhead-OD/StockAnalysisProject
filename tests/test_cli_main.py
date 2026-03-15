@@ -645,6 +645,61 @@ def test_main_analyze_merges_and_prints_metrics(monkeypatch: pytest.MonkeyPatch,
     assert "annualized_return: 0.1111" in out
 
 
+def test_parse_args_analyze_interval_default_and_override() -> None:
+    """Analyze supports optional --interval with default and explicit override."""
+
+    default_args = cli_main._parse_args(["analyze", "demo-strategy", "SPY"])
+    custom_args = cli_main._parse_args(["analyze", "demo-strategy", "SPY", "--interval", "1wk"])
+
+    assert default_args.interval == "1d"
+    assert custom_args.interval == "1wk"
+
+
+def test_main_analyze_runs_refinement_scaffold(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Analyze should invoke refinement scaffold and print scaffold summary lines."""
+
+    strategy_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "return": [0.01, -0.02]})
+    market_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "adj_close": [100.0, 99.0]})
+
+    monkeypatch.setattr(cli_main.data.strategy, "get_loaded", lambda: strategy_df)
+    monkeypatch.setattr(cli_main.data.market, "get_loaded", lambda: market_df)
+    monkeypatch.setattr(cli_main.analysis.metrics, "compute_all", lambda _df: {"sharpe_ratio": 1.0})
+
+    captured: dict[str, object] = {}
+
+    def fake_refiner(*, request, strategy_report_df, market_df, strategy_payload):
+        captured["request"] = request
+        captured["payload"] = strategy_payload
+        return cli_main.analysis.StrategyRefinementResult.scaffold(
+            strategy_name=request.strategy_name,
+            ticker=request.ticker,
+            interval=request.interval,
+            summary="scaffold summary",
+            suggestions=["one", "two"],
+            strategy_id="trend_following_SPY_1d",
+        )
+
+    monkeypatch.setattr(
+        cli_main,
+        "_load_strategy_artifact_payload",
+        lambda *, ticker, interval: _sample_strategy_payload(ticker=ticker, interval=interval, category="daily"),
+    )
+    monkeypatch.setattr(cli_main.analysis, "refine_strategy_from_report_scaffold", fake_refiner)
+
+    cli_main.main(["analyze", "demo-strategy", "SPY", "--interval", "1d"])
+
+    out = capsys.readouterr().out
+    assert "sharpe_ratio: 1.0000" in out
+    assert "Refinement scaffold: status=scaffold, suggestions=2, interval=1d" in out
+    assert "scaffold summary" in out
+    assert captured["request"].strategy_name == "demo-strategy"
+    assert captured["request"].ticker == "SPY"
+    assert captured["payload"]["strategy_id"] == "trend_following_SPY_1d"
+
+
 def test_parse_args_export_thinkscript_command() -> None:
     """Test parsing export-thinkscript command with defaults and explicit flags."""
 
