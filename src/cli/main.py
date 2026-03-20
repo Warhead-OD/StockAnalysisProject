@@ -8,7 +8,6 @@ to the underlying modules in :pymod:`src.data` and :pymod:`src.analysis`.
 from __future__ import annotations
 
 import argparse
-import json
 import random
 import re
 import sys
@@ -19,14 +18,14 @@ import pandas as pd
 
 try:
     # Package execution: `python -m src.cli.main`
-    from .. import analysis, config, data
+    from .. import analysis, data
     from ..analysis import thinkscript_artifact
 except ImportError:
     # Direct script execution: `python src/cli/main.py`
     project_root = Path(__file__).resolve().parents[2]
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
-    from src import analysis, config, data
+    from src import analysis, data
     from src.analysis import thinkscript_artifact
 
 __all__ = ["main"]
@@ -36,11 +35,6 @@ FETCH_EXPORT_DIR = Path("downloads")
 FETCH_EXPORT_PREFIX = "latest_market_data"
 FETCH_DELAY_MIN_SECONDS = 0.3
 FETCH_DELAY_MAX_SECONDS = 0.5
-
-# ThinkScript constants are now in thinkscript_artifact module
-STRATEGY_OUTPUT_PREFIX = thinkscript_artifact.STRATEGY_ARTIFACT_PREFIX
-THINKSCRIPT_OUTPUT_PREFIX = thinkscript_artifact.THINKSCRIPT_OUTPUT_PREFIX
-
 
 def _clear_saved_fetch_data(output_dir: Path | None = None) -> None:
     """Remove previous saved fetch snapshots before a new save run."""
@@ -81,47 +75,6 @@ def _print_fetch_output(df: pd.DataFrame, args: argparse.Namespace, ticker: str)
         print(df.head(3))
         print("...")
         print(df.tail(3))
-
-
-def _save_strategy_artifact(
-    result: analysis.StrategyBuildResult,
-    output_dir: Path | None = None,
-) -> Path:
-    """Persist generated strategy result as a deterministic JSON artifact."""
-
-    target_dir = output_dir or config.OUTPUTS_DIR
-    target_dir.mkdir(parents=True, exist_ok=True)
-    safe_interval = result.interval.replace("/", "_")
-    artifact_path = target_dir / f"{STRATEGY_OUTPUT_PREFIX}_{result.ticker}_{safe_interval}.json"
-    artifact_path.write_text(json.dumps(result.to_dict(), indent=2), encoding="utf-8")
-    return artifact_path
-
-
-def _strategy_artifact_path(*, ticker: str, interval: str) -> Path:
-    """Return deterministic strategy artifact path for ticker/interval."""
-
-    safe_interval = interval.replace("/", "_")
-    return config.OUTPUTS_DIR / f"{STRATEGY_OUTPUT_PREFIX}_{ticker.upper()}_{safe_interval}.json"
-
-
-def _thinkscript_output_path(*, ticker: str, interval: str, export_mode: str) -> Path:
-    """Return deterministic ThinkScript text output path."""
-
-    safe_interval = interval.replace("/", "_")
-    return config.OUTPUTS_DIR / f"{THINKSCRIPT_OUTPUT_PREFIX}_{ticker.upper()}_{safe_interval}_{export_mode}.txt"
-
-
-def _load_strategy_artifact_payload(*, ticker: str, interval: str) -> dict[str, object] | None:
-    """Load strategy artifact payload for refinement workflows when available."""
-
-    strategy_path = _strategy_artifact_path(ticker=ticker, interval=interval)
-    if not strategy_path.exists():
-        return None
-
-    payload = json.loads(strategy_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError(f"Invalid strategy artifact format in {strategy_path}")
-    return payload
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -335,7 +288,10 @@ def main(argv: list[str] | None = None) -> None:
             print(f"{name}: {value:.4f}")
 
         try:
-            strategy_payload = _load_strategy_artifact_payload(ticker=args.ticker, interval=args.interval)
+            strategy_payload = thinkscript_artifact.load_artifact_payload_optional(
+                ticker=args.ticker,
+                interval=args.interval,
+            )
             refinement_request = analysis.StrategyRefinementRequest(
                 strategy_name=args.strategy,
                 ticker=args.ticker,
@@ -354,7 +310,7 @@ def main(argv: list[str] | None = None) -> None:
             print(refinement.summary)
             for suggestion in refinement.suggestions:
                 print(f"- {suggestion}")
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
+        except (OSError, ValueError) as exc:
             print(f"Skipped refinement scaffold: {exc}", file=sys.stderr)
 
     elif args.command == "build-strategy":
@@ -381,7 +337,7 @@ def main(argv: list[str] | None = None) -> None:
             print(f"Failed to build strategy: {exc}", file=sys.stderr)
             sys.exit(1)
 
-        artifact_path = _save_strategy_artifact(result)
+        artifact_path = thinkscript_artifact.save_strategy_artifact(result)
         print(
             f"Built strategy {result.strategy_id} for {metadata.ticker} "
             f"({metadata.interval}, rows={result.data_row_count}, status={result.status})."

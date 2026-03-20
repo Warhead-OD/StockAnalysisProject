@@ -203,8 +203,8 @@ def test_main_analyze_falls_back_to_strategy_cache_and_market_artifact(
 
     monkeypatch.setattr(cli_main.analysis.metrics, "compute_all", lambda _df: {"sharpe_ratio": 0.5})
     monkeypatch.setattr(
-        cli_main,
-        "_load_strategy_artifact_payload",
+        cli_main.thinkscript_artifact,
+        "load_artifact_payload_optional",
         lambda *, ticker, interval: _sample_strategy_payload(ticker=ticker, interval=interval, category="daily"),
     )
 
@@ -744,8 +744,8 @@ def test_main_analyze_runs_refinement_scaffold(
         )
 
     monkeypatch.setattr(
-        cli_main,
-        "_load_strategy_artifact_payload",
+        cli_main.thinkscript_artifact,
+        "load_artifact_payload_optional",
         lambda *, ticker, interval: _sample_strategy_payload(ticker=ticker, interval=interval, category="daily"),
     )
     monkeypatch.setattr(cli_main.analysis, "refine_strategy_from_report_scaffold", fake_refiner)
@@ -778,8 +778,8 @@ def test_main_analyze_skips_refinement_when_artifact_load_fails(
     monkeypatch.setattr(cli_main.data.market, "get_loaded", lambda: market_df)
     monkeypatch.setattr(cli_main.analysis.metrics, "compute_all", lambda _df: {"sharpe_ratio": 0.5})
     monkeypatch.setattr(
-        cli_main,
-        "_load_strategy_artifact_payload",
+        cli_main.thinkscript_artifact,
+        "load_artifact_payload_optional",
         lambda *, ticker, interval: (_ for _ in ()).throw(ValueError("bad artifact payload")),
     )
 

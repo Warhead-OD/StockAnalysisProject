@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .. import config
+
+if TYPE_CHECKING:
+    from .strategy_models import StrategyBuildResult
 
 # Artifact naming constants
 STRATEGY_ARTIFACT_PREFIX = "strategy_plan"
@@ -17,6 +21,20 @@ def get_strategy_artifact_path(*, ticker: str, interval: str) -> Path:
     
     safe_interval = interval.replace("/", "_")
     return config.OUTPUTS_DIR / f"{STRATEGY_ARTIFACT_PREFIX}_{ticker.upper()}_{safe_interval}.json"
+
+
+def save_strategy_artifact(
+    result: "StrategyBuildResult",
+    output_dir: Path | None = None,
+) -> Path:
+    """Persist generated strategy result as a deterministic JSON artifact."""
+
+    target_dir = output_dir or config.OUTPUTS_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+    safe_interval = result.interval.replace("/", "_")
+    artifact_path = target_dir / f"{STRATEGY_ARTIFACT_PREFIX}_{result.ticker}_{safe_interval}.json"
+    artifact_path.write_text(json.dumps(result.to_dict(), indent=2), encoding="utf-8")
+    return artifact_path
 
 
 def get_thinkscript_output_path(*, ticker: str, interval: str, export_mode: str) -> Path:
