@@ -489,7 +489,7 @@ def test_clear_saved_fetch_data_removes_old_snapshots(tmp_path: Path) -> None:
     old_a.write_text("date,adj_close\n2026-01-01,100\n", encoding="utf-8")
     old_b.write_text("date,adj_close\n2026-01-01,101\n", encoding="utf-8")
 
-    cli_main._clear_saved_fetch_data(output_dir=tmp_path)
+    cli_main.data.market_repository.clear_saved_fetch_snapshots(output_dir=tmp_path)
 
     assert not old_a.exists()
     assert not old_b.exists()
@@ -501,12 +501,20 @@ def test_save_fetched_data_supports_multiple_tickers_after_cleanup(tmp_path: Pat
     df_aapl = pd.DataFrame({"date": ["2026-01-01"], "adj_close": [100.0]})
     df_msft = pd.DataFrame({"date": ["2026-01-02"], "adj_close": [101.0]})
 
-    cli_main._clear_saved_fetch_data(output_dir=tmp_path)
-    first_path = cli_main._save_fetched_data(df=df_aapl, ticker="AAPL", output_dir=tmp_path)
+    cli_main.data.market_repository.clear_saved_fetch_snapshots(output_dir=tmp_path)
+    first_path = cli_main.data.market_repository.save_market_snapshot_csv(
+        df=df_aapl,
+        ticker="AAPL",
+        output_dir=tmp_path,
+    )
     assert first_path.name == "latest_market_data_AAPL.csv"
     assert first_path.exists()
 
-    second_path = cli_main._save_fetched_data(df=df_msft, ticker="MSFT", output_dir=tmp_path)
+    second_path = cli_main.data.market_repository.save_market_snapshot_csv(
+        df=df_msft,
+        ticker="MSFT",
+        output_dir=tmp_path,
+    )
     assert second_path.name == "latest_market_data_MSFT.csv"
     assert second_path.exists()
     assert first_path.exists()
@@ -544,10 +552,10 @@ def test_main_fetch_save_calls_helper(
     def fake_clear(output_dir=None):
         clear_called["count"] += 1
 
-    monkeypatch.setattr(cli_main, "_clear_saved_fetch_data", fake_clear)
+    monkeypatch.setattr(cli_main.data.market_repository, "clear_saved_fetch_snapshots", fake_clear)
     monkeypatch.setattr(
-        cli_main,
-        "_save_fetched_data",
+        cli_main.data.market_repository,
+        "save_market_snapshot_csv",
         lambda df, ticker, output_dir=None: Path(f"downloads/latest_market_data_{ticker}.csv"),
     )
     monkeypatch.setattr(cli_main.time, "sleep", lambda _seconds: None)
@@ -638,13 +646,13 @@ def test_main_fetch_save_uses_resolved_dataframe(
     )
     monkeypatch.setattr(cli_main.data.market_data_access, "has_dataset", lambda **_kwargs: True)
     monkeypatch.setattr(cli_main.data.market_data_access, "load_dataset", lambda **_kwargs: parquet_df)
-    monkeypatch.setattr(cli_main, "_clear_saved_fetch_data", lambda output_dir=None: None)
+    monkeypatch.setattr(cli_main.data.market_repository, "clear_saved_fetch_snapshots", lambda output_dir=None: None)
 
     def fake_save(df: pd.DataFrame, ticker: str, output_dir=None) -> Path:
         observed["df"] = df
         return Path(f"downloads/latest_market_data_{ticker}.csv")
 
-    monkeypatch.setattr(cli_main, "_save_fetched_data", fake_save)
+    monkeypatch.setattr(cli_main.data.market_repository, "save_market_snapshot_csv", fake_save)
     monkeypatch.setattr(cli_main.time, "sleep", lambda _seconds: None)
     monkeypatch.setattr(cli_main.random, "uniform", lambda _a, _b: 0.4)
 

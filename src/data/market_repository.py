@@ -10,6 +10,8 @@ import pandas as pd
 from .. import config
 from .market_models import MarketDatasetMetadata
 
+FETCH_SNAPSHOT_PREFIX = "latest_market_data"
+
 
 def _safe_ticker_name(ticker: str) -> str:
     """Convert ticker symbols to filesystem-safe uppercase tokens."""
@@ -47,3 +49,37 @@ def save_market_dataset(
     meta_path.write_text(json.dumps(metadata.to_dict(), indent=2), encoding="utf-8")
 
     return parquet_path, meta_path
+
+
+def clear_saved_fetch_snapshots(
+    *,
+    output_dir: Path | None = None,
+    prefix: str = FETCH_SNAPSHOT_PREFIX,
+) -> None:
+    """Remove prior CSV fetch snapshots before a new save run."""
+
+    target_dir = output_dir or config.DOWNLOADS_DIR
+    if not target_dir.exists():
+        return
+
+    for existing in target_dir.glob(f"{prefix}_*.csv"):
+        if existing.is_file():
+            existing.unlink()
+
+
+def save_market_snapshot_csv(
+    df: pd.DataFrame,
+    *,
+    ticker: str,
+    output_dir: Path | None = None,
+    prefix: str = FETCH_SNAPSHOT_PREFIX,
+) -> Path:
+    """Persist fetched market data as a user-facing CSV snapshot."""
+
+    target_dir = output_dir or config.DOWNLOADS_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_ticker = _safe_ticker_name(ticker)
+    output_path = target_dir / f"{prefix}_{safe_ticker}.csv"
+    df.to_csv(output_path, index=False)
+    return output_path

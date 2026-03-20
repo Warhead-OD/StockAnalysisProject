@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import random
-import re
 import sys
 import time
 from pathlib import Path
@@ -32,32 +31,8 @@ __all__ = ["main"]
 
 # CLI configuration constants
 FETCH_EXPORT_DIR = Path("downloads")
-FETCH_EXPORT_PREFIX = "latest_market_data"
 FETCH_DELAY_MIN_SECONDS = 0.3
 FETCH_DELAY_MAX_SECONDS = 0.5
-
-def _clear_saved_fetch_data(output_dir: Path | None = None) -> None:
-    """Remove previous saved fetch snapshots before a new save run."""
-
-    target_dir = output_dir or FETCH_EXPORT_DIR
-    if not target_dir.exists():
-        return
-
-    for existing in target_dir.glob(f"{FETCH_EXPORT_PREFIX}_*.csv"):
-        if existing.is_file():
-            existing.unlink()
-
-
-def _save_fetched_data(df: pd.DataFrame, ticker: str, output_dir: Path | None = None) -> Path:
-    """Persist fetched market data for a single ticker."""
-
-    target_dir = output_dir or FETCH_EXPORT_DIR
-    target_dir.mkdir(parents=True, exist_ok=True)
-
-    safe_ticker = re.sub(r"[^A-Za-z0-9._-]", "_", ticker.strip().upper())
-    output_path = target_dir / f"{FETCH_EXPORT_PREFIX}_{safe_ticker}.csv"
-    df.to_csv(output_path, index=False)
-    return output_path
 
 
 def _print_fetch_output(df: pd.DataFrame, args: argparse.Namespace, ticker: str) -> None:
@@ -235,7 +210,7 @@ def main(argv: list[str] | None = None) -> None:
 
     elif args.command == "fetch":
         if args.save:
-            _clear_saved_fetch_data()
+            data.market_repository.clear_saved_fetch_snapshots(output_dir=FETCH_EXPORT_DIR)
 
         for index, ticker in enumerate(args.tickers):
             fetched_df = data.market.fetch_yfinance(
@@ -256,7 +231,11 @@ def main(argv: list[str] | None = None) -> None:
             )
 
             if args.save:
-                saved_path = _save_fetched_data(df=display_df, ticker=ticker)
+                saved_path = data.market_repository.save_market_snapshot_csv(
+                    df=display_df,
+                    ticker=ticker,
+                    output_dir=FETCH_EXPORT_DIR,
+                )
                 print(f"Saved fetched data to {saved_path}")
 
             _print_fetch_output(df=display_df, args=args, ticker=ticker)
