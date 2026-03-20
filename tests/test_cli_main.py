@@ -164,7 +164,11 @@ def test_main_load_calls_strategy_loader(monkeypatch: pytest.MonkeyPatch, capsys
         return pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "return": [0.1, -0.1]})
 
     monkeypatch.setattr(cli_main.data.strategy, "load_csv", fake_load_csv)
-    monkeypatch.setattr(cli_main, "_save_strategy_report_cache", lambda _df: Path("downloads/strategy_imports/cache.csv"))
+    monkeypatch.setattr(
+        cli_main.data.session_cache,
+        "save_strategy_report_cache",
+        lambda _df: Path("downloads/strategy_imports/cache.csv"),
+    )
 
     cli_main.main(["load", "--file", "report.csv"])
 
@@ -187,7 +191,7 @@ def test_main_analyze_falls_back_to_strategy_cache_and_market_artifact(
         "get_loaded",
         lambda: (_ for _ in ()).throw(RuntimeError("No strategy has been loaded yet")),
     )
-    monkeypatch.setattr(cli_main, "_load_strategy_report_cache", lambda: strategy_df)
+    monkeypatch.setattr(cli_main.data.session_cache, "load_strategy_report_cache", lambda **_kwargs: strategy_df)
 
     monkeypatch.setattr(
         cli_main.data.market,

@@ -13,12 +13,13 @@ from .market_fetcher import SUPPORTED_INTERVALS, SUPPORTED_PERIODS, fetch_market
 from .market_data_access import market_data_access
 from .market_models import MarketDatasetMetadata, MarketFetchRequest
 from .market_repository import save_market_dataset
+from . import session_cache
 
 # Simple cache for loaded data – in a real project you might use a more robust solution.
 _loaded_strategy: pd.DataFrame | None = None
 _loaded_market: pd.DataFrame | None = None
 
-__all__ = ["strategy", "market", "market_data_access"]
+__all__ = ["strategy", "market", "market_data_access", "session_cache"]
 
 
 def _parse_money_like_value(value: object) -> float | None:

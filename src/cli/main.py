@@ -34,13 +34,8 @@ __all__ = ["main"]
 # CLI configuration constants
 FETCH_EXPORT_DIR = Path("downloads")
 FETCH_EXPORT_PREFIX = "latest_market_data"
-STRATEGY_IMPORT_DIR = FETCH_EXPORT_DIR / "strategy_imports"
-STRATEGY_REPORT_CACHE_FILE = "latest_loaded_strategy_report.csv"
 FETCH_DELAY_MIN_SECONDS = 0.3
 FETCH_DELAY_MAX_SECONDS = 0.5
-INTRADAY_INTERVALS = {"1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h"}
-DAILY_INTERVALS = {"1d", "5d"}
-LONG_TERM_INTERVALS = {"1wk", "1mo", "3mo"}
 
 # ThinkScript constants are now in thinkscript_artifact module
 STRATEGY_OUTPUT_PREFIX = thinkscript_artifact.STRATEGY_ARTIFACT_PREFIX
@@ -71,95 +66,6 @@ def _save_fetched_data(df: pd.DataFrame, ticker: str, output_dir: Path | None = 
     return output_path
 
 
-def _strategy_report_cache_path() -> Path:
-    """Return path used to persist the latest loaded strategy report for analyze fallback."""
-
-    return STRATEGY_IMPORT_DIR / STRATEGY_REPORT_CACHE_FILE
-
-
-def _save_strategy_report_cache(df: pd.DataFrame) -> Path:
-    """Persist latest loaded strategy report so analyze can run across separate CLI invocations."""
-
-    cache_path = _strategy_report_cache_path()
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(cache_path, index=False)
-    return cache_path
-
-
-def _load_strategy_report_cache() -> pd.DataFrame | None:
-    """Load persisted strategy report cache if present."""
-
-    cache_path = _strategy_report_cache_path()
-    if not cache_path.exists():
-        return None
-    return pd.read_csv(cache_path)
-
-
-def _resolve_analyze_strategy_df() -> pd.DataFrame:
-    """Return loaded strategy report, falling back to persisted cache between CLI commands."""
-
-    try:
-        return data.strategy.get_loaded()
-    except RuntimeError:
-        cached = _load_strategy_report_cache()
-        if cached is not None:
-            return cached
-        raise RuntimeError(
-            "No strategy has been loaded yet. Run `load --file <strategy_csv>` first "
-            "(or ensure a cached strategy report exists)."
-        )
-
-
-def _resolve_analyze_market_df(*, ticker: str, interval: str) -> pd.DataFrame:
-    """Return loaded market data, falling back to persisted market artifacts between CLI commands."""
-
-    try:
-        return data.market.get_loaded()
-    except RuntimeError:
-        if data.market_data_access.has_dataset(ticker=ticker, interval=interval):
-            return data.market_data_access.load_dataset(ticker=ticker, interval=interval)
-        raise RuntimeError(
-            "No market data has been loaded yet. Run `fetch` first for this ticker/interval."
-        )
-
-
-def _normalize_analyze_date_columns(
-    *,
-    strategy_df: pd.DataFrame,
-    market_df: pd.DataFrame,
-    interval: str,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Normalize strategy/market date keys so merge uses compatible types.
-
-    Daily and higher-timeframe intervals merge on date-only keys.
-    Intraday intervals merge on second-resolution timestamp keys.
-    """
-
-    if "date" not in strategy_df.columns:
-        raise ValueError("Strategy dataframe is missing required 'date' column")
-    if "date" not in market_df.columns:
-        raise ValueError("Market dataframe is missing required 'date' column")
-
-    strategy = strategy_df.copy()
-    market = market_df.copy()
-    strategy_dates = pd.to_datetime(strategy["date"], errors="coerce")
-    market_dates = pd.to_datetime(market["date"], errors="coerce")
-
-    if strategy_dates.isna().any():
-        raise ValueError("Strategy dataframe contains invalid date values")
-    if market_dates.isna().any():
-        raise ValueError("Market dataframe contains invalid date values")
-
-    if interval in DAILY_INTERVALS or interval in LONG_TERM_INTERVALS:
-        strategy["date"] = strategy_dates.dt.strftime("%Y-%m-%d")
-        market["date"] = market_dates.dt.strftime("%Y-%m-%d")
-    else:
-        strategy["date"] = strategy_dates.dt.strftime("%Y-%m-%d %H:%M:%S")
-        market["date"] = market_dates.dt.strftime("%Y-%m-%d %H:%M:%S")
-
-    return strategy, market
-
-
 def _print_fetch_output(df: pd.DataFrame, args: argparse.Namespace, ticker: str) -> None:
     """Print fetch results according to the selected output controls."""
 
@@ -175,31 +81,6 @@ def _print_fetch_output(df: pd.DataFrame, args: argparse.Namespace, ticker: str)
         print(df.head(3))
         print("...")
         print(df.tail(3))
-
-
-def _resolve_fetch_dataframe(
-    *,
-    ticker: str,
-    interval: str,
-    fallback_df: pd.DataFrame,
-) -> pd.DataFrame:
-    """Use persisted parquet artifacts for CLI display when available."""
-
-    if data.market_data_access.has_dataset(ticker=ticker, interval=interval):
-        return data.market_data_access.load_dataset(ticker=ticker, interval=interval)
-    return fallback_df
-
-
-def _interval_category(interval: str) -> str:
-    """Return strategy category implied by a market-data interval."""
-
-    if interval in INTRADAY_INTERVALS:
-        return "intraday"
-    if interval in DAILY_INTERVALS:
-        return "daily"
-    if interval in LONG_TERM_INTERVALS:
-        return "long-term"
-    raise ValueError(f"No strategy category mapping exists for interval '{interval}'")
 
 
 def _save_strategy_artifact(
@@ -372,7 +253,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         if args.limit is not None and args.limit <= 0:
             parser.error("--limit must be a positive integer")
     if args.command == "build-strategy" and args.category:
-        expected_category = _interval_category(args.interval)
+        expected_category = analysis.map_interval_to_category(args.interval)
         if args.category != expected_category:
             parser.error(
                 f"--category {args.category} does not match interval {args.interval} "
@@ -394,7 +275,7 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command == "load":
         strategy = data.strategy.load_csv(args.file)
-        _save_strategy_report_cache(strategy)
+        data.session_cache.save_strategy_report_cache(strategy)
         print(f"Loaded strategy with {len(strategy)} rows")
         # store strategy in a temporary location; a more complete project
         # would persist it in memory or a cache.
@@ -414,7 +295,8 @@ def main(argv: list[str] | None = None) -> None:
                 prepost=args.prepost,
                 actions=args.actions,
             )
-            display_df = _resolve_fetch_dataframe(
+            display_df = data.session_cache.resolve_fetch_dataframe(
+                market_data_access=data.market_data_access,
                 ticker=ticker,
                 interval=args.interval,
                 fallback_df=fetched_df,
@@ -431,9 +313,14 @@ def main(argv: list[str] | None = None) -> None:
 
     elif args.command == "analyze":
         try:
-            strategy_df = _resolve_analyze_strategy_df()
-            market_df = _resolve_analyze_market_df(ticker=args.ticker, interval=args.interval)
-            strategy_df, market_df = _normalize_analyze_date_columns(
+            strategy_df = data.session_cache.resolve_analyze_strategy_df(strategy_module=data.strategy)
+            market_df = data.session_cache.resolve_analyze_market_df(
+                market_module=data.market,
+                market_data_access=data.market_data_access,
+                ticker=args.ticker,
+                interval=args.interval,
+            )
+            strategy_df, market_df = analysis.normalize_strategy_market_dates(
                 strategy_df=strategy_df,
                 market_df=market_df,
                 interval=args.interval,
@@ -481,7 +368,7 @@ def main(argv: list[str] | None = None) -> None:
 
         metadata = data.market_data_access.load_metadata(ticker=args.ticker, interval=args.interval)
         dataset = data.market_data_access.load_dataset(ticker=args.ticker, interval=args.interval)
-        category = args.category or _interval_category(args.interval)
+        category = args.category or analysis.map_interval_to_category(args.interval)
 
         try:
             build_request = analysis.StrategyBuildRequest(
