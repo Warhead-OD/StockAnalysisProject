@@ -17,6 +17,7 @@ from .strategy_refiner import refine_strategy_from_report_scaffold
 from .strategy_refinement_models import StrategyRefinementRequest, StrategyRefinementResult
 from .thinkscript_exporter import export_thinkscript, export_thinkscript_scaffold
 from .thinkscript_models import ThinkScriptExportRequest, ThinkScriptExportResult
+from .workflows import run_analyze_workflow
 
 __all__ = [
     "metrics",
@@ -28,6 +29,7 @@ __all__ = [
     "StrategyRefinementRequest",
     "StrategyRefinementResult",
     "refine_strategy_from_report_scaffold",
+    "run_analyze_workflow",
     "ThinkScriptExportRequest",
     "ThinkScriptExportResult",
     "export_thinkscript",
