@@ -124,6 +124,21 @@ def _stub_market_data_access(monkeypatch: pytest.MonkeyPatch) -> None:
         _stub_export_thinkscript_scaffold,
     )
 
+    def _stub_export_thinkscript(
+        *,
+        ticker: str,
+        interval: str,
+        export_mode: str = "strategy",
+        include_orders: bool = True,
+    ) -> ThinkScriptExportResult:
+        raise RuntimeError("export_thinkscript should not be called in this test")
+
+    monkeypatch.setattr(
+        cli_main.analysis,
+        "export_thinkscript",
+        _stub_export_thinkscript,
+    )
+
 
 def test_parse_args_load_command() -> None:
     """

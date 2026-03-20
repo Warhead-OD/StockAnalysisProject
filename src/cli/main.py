@@ -20,26 +20,31 @@ import pandas as pd
 try:
     # Package execution: `python -m src.cli.main`
     from .. import analysis, config, data
+    from ..analysis import thinkscript_artifact
 except ImportError:
     # Direct script execution: `python src/cli/main.py`
     project_root = Path(__file__).resolve().parents[2]
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
     from src import analysis, config, data
+    from src.analysis import thinkscript_artifact
 
 __all__ = ["main"]
 
+# CLI configuration constants
 FETCH_EXPORT_DIR = Path("downloads")
 FETCH_EXPORT_PREFIX = "latest_market_data"
 STRATEGY_IMPORT_DIR = FETCH_EXPORT_DIR / "strategy_imports"
 STRATEGY_REPORT_CACHE_FILE = "latest_loaded_strategy_report.csv"
 FETCH_DELAY_MIN_SECONDS = 0.3
 FETCH_DELAY_MAX_SECONDS = 0.5
-STRATEGY_OUTPUT_PREFIX = "strategy_plan"
-THINKSCRIPT_OUTPUT_PREFIX = "thinkscript"
 INTRADAY_INTERVALS = {"1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h"}
 DAILY_INTERVALS = {"1d", "5d"}
 LONG_TERM_INTERVALS = {"1wk", "1mo", "3mo"}
+
+# ThinkScript constants are now in thinkscript_artifact module
+STRATEGY_OUTPUT_PREFIX = thinkscript_artifact.STRATEGY_ARTIFACT_PREFIX
+THINKSCRIPT_OUTPUT_PREFIX = thinkscript_artifact.THINKSCRIPT_OUTPUT_PREFIX
 
 
 def _clear_saved_fetch_data(output_dir: Path | None = None) -> None:
