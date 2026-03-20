@@ -11,6 +11,7 @@ import math
 import pandas as pd
 
 from .strategy_builder import trend_following_builder
+from .date_prep import map_interval_to_category, normalize_strategy_market_dates
 from .strategy_models import StrategyBuildRequest, StrategyBuildResult
 from .strategy_refiner import refine_strategy_from_report_scaffold
 from .strategy_refinement_models import StrategyRefinementRequest, StrategyRefinementResult
@@ -20,6 +21,8 @@ from .thinkscript_models import ThinkScriptExportRequest, ThinkScriptExportResul
 __all__ = [
     "metrics",
     "trend_following_builder",
+    "map_interval_to_category",
+    "normalize_strategy_market_dates",
     "StrategyBuildRequest",
     "StrategyBuildResult",
     "StrategyRefinementRequest",
