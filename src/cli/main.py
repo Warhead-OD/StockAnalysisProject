@@ -499,24 +499,12 @@ def main(argv: list[str] | None = None) -> None:
         )
 
     elif args.command == "export-thinkscript":
-        strategy_artifact = _strategy_artifact_path(ticker=args.ticker, interval=args.interval)
-        thinkscript_output = _thinkscript_output_path(
-            ticker=args.ticker,
-            interval=args.interval,
-            export_mode=args.mode,
-        )
-
-        request = analysis.ThinkScriptExportRequest(
-            ticker=args.ticker,
-            interval=args.interval,
-            export_mode=args.mode,
-            include_orders=not args.disable_orders,
-        )
         try:
-            result = analysis.export_thinkscript_scaffold(
-                request=request,
-                strategy_artifact_path=strategy_artifact,
-                output_path=thinkscript_output,
+            result = analysis.export_thinkscript(
+                ticker=args.ticker,
+                interval=args.interval,
+                export_mode=args.mode,
+                include_orders=not args.disable_orders,
             )
         except (FileNotFoundError, ValueError) as exc:
             print(f"Failed to export ThinkScript: {exc}", file=sys.stderr)

@@ -814,8 +814,8 @@ def test_main_export_thinkscript_calls_exporter_and_prints_result(
 
     monkeypatch.setattr(
         cli_main.analysis,
-        "export_thinkscript_scaffold",
-        lambda *, request, strategy_artifact_path, output_path: fake_result,
+        "export_thinkscript",
+        lambda *, ticker, interval, export_mode="strategy", include_orders=True: fake_result,
     )
 
     cli_main.main(["export-thinkscript", "AAPL", "--interval", "1d"])
@@ -825,7 +825,7 @@ def test_main_export_thinkscript_calls_exporter_and_prints_result(
     assert "1d" in out
     assert "mode=strategy" in out
     assert "status=generated" in out
-    assert "outputs/thinkscript_AAPL_1d_strategy.txt" in out
+    assert "thinkscript_AAPL_1d_strategy.txt" in out
 
 
 def test_main_export_thinkscript_missing_artifact_exits(
@@ -836,8 +836,8 @@ def test_main_export_thinkscript_missing_artifact_exits(
 
     monkeypatch.setattr(
         cli_main.analysis,
-        "export_thinkscript_scaffold",
-        lambda *, request, strategy_artifact_path, output_path: (_ for _ in ()).throw(
+        "export_thinkscript",
+        lambda *, ticker, interval, export_mode="strategy", include_orders=True: (_ for _ in ()).throw(
             FileNotFoundError("Strategy artifact not found: outputs/strategy_plan_AAPL_1d.json")
         ),
     )
