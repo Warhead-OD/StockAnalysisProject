@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+from . import thinkscript_artifact
 from .thinkscript_models import ThinkScriptExportRequest, ThinkScriptExportResult
 
 
@@ -98,7 +98,20 @@ def export_thinkscript_scaffold(
     strategy_artifact_path: Path,
     output_path: Path,
 ) -> ThinkScriptExportResult:
-    """Export a ThinkScript script from a strategy artifact (full template rendering)."""
+    """Export a ThinkScript script from a strategy artifact (full template rendering).
+    
+    Args:
+        request: ThinkScriptExportRequest with ticker, interval, mode, and options
+        strategy_artifact_path: Path to strategy artifact JSON file
+        output_path: Path where ThinkScript output will be written
+    
+    Returns:
+        ThinkScriptExportResult with export metadata
+    
+    Raises:
+        FileNotFoundError: If artifact file does not exist
+        ValueError: If artifact format is invalid
+    """
 
     if not strategy_artifact_path.exists():
         raise FileNotFoundError(
@@ -106,9 +119,13 @@ def export_thinkscript_scaffold(
             "Run build-strategy before export-thinkscript."
         )
 
-    payload = json.loads(strategy_artifact_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError(f"Invalid strategy artifact format in {strategy_artifact_path}")
+    try:
+        payload = thinkscript_artifact.load_artifact_payload(
+            ticker=request.ticker, interval=request.interval
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        # Re-raise with full path context if available
+        raise ValueError(str(exc)) from exc
 
     generated_at = datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -127,4 +144,56 @@ def export_thinkscript_scaffold(
         output_path=str(output_path),
         strategy_id=str(payload.get("strategy_id")) if payload.get("strategy_id") else None,
         generated_at=generated_at,
+    )
+
+
+def export_thinkscript(
+    *,
+    ticker: str,
+    interval: str,
+    export_mode: str = "strategy",
+    include_orders: bool = True,
+) -> ThinkScriptExportResult:
+    """High-level export function for UI and external library consumers.
+    
+    Automatically resolves artifact and output paths, loads the strategy,
+    and exports ThinkScript with all configuration options.
+    
+    Args:
+        ticker: Stock ticker symbol (e.g., 'AAPL')
+        interval: Time interval (e.g., '1d', '5m', '1w')
+        export_mode: 'strategy' (with orders) or 'study' (indicators only)
+        include_orders: If True, include BUY/SELL orders in output (strategy mode only)
+    
+    Returns:
+        ThinkScriptExportResult with export metadata and output path
+    
+    Raises:
+        FileNotFoundError: If strategy artifact not found
+        ValueError: If artifact format is invalid or export fails
+    
+    Example:
+        >>> result = export_thinkscript(ticker='AAPL', interval='1d')
+        >>> print(result.output_path)
+        outputs/thinkscript_AAPL_1d_strategy.txt
+    """
+    
+    request = ThinkScriptExportRequest(
+        ticker=ticker,
+        interval=interval,
+        export_mode=export_mode,
+        include_orders=include_orders,
+    )
+    
+    strategy_artifact_path = thinkscript_artifact.get_strategy_artifact_path(
+        ticker=ticker, interval=interval
+    )
+    output_path = thinkscript_artifact.get_thinkscript_output_path(
+        ticker=ticker, interval=interval, export_mode=export_mode
+    )
+    
+    return export_thinkscript_scaffold(
+        request=request,
+        strategy_artifact_path=strategy_artifact_path,
+        output_path=output_path,
     )
