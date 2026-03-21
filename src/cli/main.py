@@ -252,36 +252,25 @@ def main(argv: list[str] | None = None) -> None:
                 ticker=args.ticker,
                 interval=args.interval,
             )
-            strategy_df, market_df = analysis.normalize_strategy_market_dates(
-                strategy_df=strategy_df,
-                market_df=market_df,
-                interval=args.interval,
-            )
         except (RuntimeError, ValueError) as exc:
             print(str(exc), file=sys.stderr)
             sys.exit(1)
-
-        merged = strategy_df.merge(market_df, on="date")
-        metrics = analysis.metrics.compute_all(merged)
-        for name, value in metrics.items():
-            print(f"{name}: {value:.4f}")
 
         try:
             strategy_payload = thinkscript_artifact.load_artifact_payload_optional(
                 ticker=args.ticker,
                 interval=args.interval,
             )
-            refinement_request = analysis.StrategyRefinementRequest(
+            metrics, refinement = analysis.run_analyze_workflow(
                 strategy_name=args.strategy,
                 ticker=args.ticker,
                 interval=args.interval,
-            )
-            refinement = analysis.refine_strategy_from_report_scaffold(
-                request=refinement_request,
-                strategy_report_df=strategy_df,
+                strategy_df=strategy_df,
                 market_df=market_df,
                 strategy_payload=strategy_payload,
             )
+            for name, value in metrics.items():
+                print(f"{name}: {value:.4f}")
             print(
                 f"Refinement scaffold: status={refinement.status}, "
                 f"suggestions={refinement.suggestion_count}, interval={refinement.interval}"
