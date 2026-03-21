@@ -140,58 +140,16 @@ def _stub_market_data_access(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def test_parse_args_load_command() -> None:
-    """
-    Test parsing of 'load' command arguments.
-    Verifies correct command and file path are parsed.
-    """
-
-    args = cli_main._parse_args(["load", "--file", "report.csv"])
-
-    assert args.command == "load"
-    assert args.file == Path("report.csv")
-
-
-def test_main_load_calls_strategy_loader(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-    """
-    Test that main() calls strategy loader and prints correct output for 'load' command.
-    """
-
-    observed: dict[str, Path] = {}
-
-    def fake_load_csv(path: Path) -> pd.DataFrame:
-        observed["path"] = path
-        return pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "return": [0.1, -0.1]})
-
-    monkeypatch.setattr(cli_main.data.strategy, "load_csv", fake_load_csv)
-    monkeypatch.setattr(
-        cli_main.data.session_cache,
-        "save_strategy_report_cache",
-        lambda _df: Path("downloads/strategy_imports/cache.csv"),
-    )
-
-    cli_main.main(["load", "--file", "report.csv"])
-
-    out = capsys.readouterr().out
-    assert observed["path"] == Path("report.csv")
-    assert "Loaded strategy with 2 rows" in out
-
-
-def test_main_analyze_falls_back_to_strategy_cache_and_market_artifact(
+def test_main_analyze_loads_strategy_from_file(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Analyze should run across separate CLI invocations using strategy-cache and market-artifact fallbacks."""
+    """Analyze should load strategy directly from file and run metrics and refinement."""
 
     strategy_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "return": [0.01, -0.02]})
     market_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "adj_close": [100.0, 99.0]})
 
-    monkeypatch.setattr(
-        cli_main.data.strategy,
-        "get_loaded",
-        lambda: (_ for _ in ()).throw(RuntimeError("No strategy has been loaded yet")),
-    )
-    monkeypatch.setattr(cli_main.data.session_cache, "load_strategy_report_cache", lambda **_kwargs: strategy_df)
+    monkeypatch.setattr(cli_main.data, "load_strategy_from_file", lambda _path: strategy_df)
 
     monkeypatch.setattr(
         cli_main.data.market,
@@ -208,7 +166,7 @@ def test_main_analyze_falls_back_to_strategy_cache_and_market_artifact(
         lambda *, ticker, interval: _sample_strategy_payload(ticker=ticker, interval=interval, category="daily"),
     )
 
-    cli_main.main(["analyze", "demo-strategy", "AAPL", "--interval", "1d"])
+    cli_main.main(["analyze", "demo-strategy", "AAPL", "--file", "report.csv", "--interval", "1d"])
 
     out = capsys.readouterr().out
     assert "sharpe_ratio: 0.5000" in out
@@ -695,7 +653,7 @@ def test_main_analyze_merges_and_prints_metrics(monkeypatch: pytest.MonkeyPatch,
     strategy_df = pd.DataFrame({"date": pd.to_datetime(["2026-01-01", "2026-01-02"]), "return": [0.01, -0.02]})
     market_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "adj_close": [100.0, 99.0]})
 
-    monkeypatch.setattr(cli_main.data.strategy, "get_loaded", lambda: strategy_df)
+    monkeypatch.setattr(cli_main.data, "load_strategy_from_file", lambda _path: strategy_df)
     monkeypatch.setattr(cli_main.data.market, "get_loaded", lambda: market_df)
 
     def fake_compute_all(df: pd.DataFrame) -> dict[str, float]:
@@ -705,7 +663,7 @@ def test_main_analyze_merges_and_prints_metrics(monkeypatch: pytest.MonkeyPatch,
 
     monkeypatch.setattr(cli_main.analysis.metrics, "compute_all", fake_compute_all)
 
-    cli_main.main(["analyze", "demo-strategy", "SPY"])
+    cli_main.main(["analyze", "demo-strategy", "SPY", "--file", "report.csv"])
 
     out = capsys.readouterr().out
     assert "sharpe_ratio: 1.2346" in out
@@ -715,8 +673,8 @@ def test_main_analyze_merges_and_prints_metrics(monkeypatch: pytest.MonkeyPatch,
 def test_parse_args_analyze_interval_default_and_override() -> None:
     """Analyze supports optional --interval with default and explicit override."""
 
-    default_args = cli_main._parse_args(["analyze", "demo-strategy", "SPY"])
-    custom_args = cli_main._parse_args(["analyze", "demo-strategy", "SPY", "--interval", "1wk"])
+    default_args = cli_main._parse_args(["analyze", "demo-strategy", "SPY", "--file", "report.csv"])
+    custom_args = cli_main._parse_args(["analyze", "demo-strategy", "SPY", "--file", "report.csv", "--interval", "1wk"])
 
     assert default_args.interval == "1d"
     assert custom_args.interval == "1wk"
@@ -731,7 +689,7 @@ def test_main_analyze_runs_refinement_scaffold(
     strategy_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "return": [0.01, -0.02]})
     market_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "adj_close": [100.0, 99.0]})
 
-    monkeypatch.setattr(cli_main.data.strategy, "get_loaded", lambda: strategy_df)
+    monkeypatch.setattr(cli_main.data, "load_strategy_from_file", lambda _path: strategy_df)
     monkeypatch.setattr(cli_main.data.market, "get_loaded", lambda: market_df)
 
     observed_call = {}
@@ -763,7 +721,7 @@ def test_main_analyze_runs_refinement_scaffold(
 
     monkeypatch.setattr(cli_main.analysis, "run_analyze_workflow", fake_workflow)
 
-    cli_main.main(["analyze", "demo-strategy", "SPY", "--interval", "1d"])
+    cli_main.main(["analyze", "demo-strategy", "SPY", "--file", "report.csv", "--interval", "1d"])
 
     out = capsys.readouterr().out
     assert "sharpe_ratio: 1.0000" in out
@@ -785,7 +743,7 @@ def test_main_analyze_skips_refinement_when_artifact_load_fails(
     strategy_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "return": [0.01, -0.02]})
     market_df = pd.DataFrame({"date": ["2026-01-01", "2026-01-02"], "adj_close": [100.0, 99.0]})
 
-    monkeypatch.setattr(cli_main.data.strategy, "get_loaded", lambda: strategy_df)
+    monkeypatch.setattr(cli_main.data, "load_strategy_from_file", lambda _path: strategy_df)
     monkeypatch.setattr(cli_main.data.market, "get_loaded", lambda: market_df)
 
     def fake_workflow(**kwargs):
@@ -793,7 +751,7 @@ def test_main_analyze_skips_refinement_when_artifact_load_fails(
 
     monkeypatch.setattr(cli_main.analysis, "run_analyze_workflow", fake_workflow)
 
-    cli_main.main(["analyze", "demo-strategy", "SPY", "--interval", "1d"])
+    cli_main.main(["analyze", "demo-strategy", "SPY", "--file", "report.csv", "--interval", "1d"])
 
     captured = capsys.readouterr()
     out = captured.out
