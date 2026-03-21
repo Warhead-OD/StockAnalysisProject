@@ -66,10 +66,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Stock strategy analysis toolkit")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    # load strategy
-    load = sub.add_parser("load", help="Load a strategy report CSV")
-    load.add_argument("--file", required=True, type=Path, help="Path to the strategy CSV file")
-
     # fetch market data
     fetch = sub.add_parser("fetch", help="Download historical OHLC data from yfinance")
     fetch.add_argument("tickers", nargs="+", help="One or more ticker symbols (e.g., AAPL MSFT)")
@@ -120,8 +116,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     # analyze
     analyze = sub.add_parser("analyze", help="Run metrics on a loaded strategy and market data")
-    analyze.add_argument("strategy", help="Strategy name as found in the loaded CSV")
+    analyze.add_argument("strategy", help="Strategy name as found in the strategy CSV")
     analyze.add_argument("ticker", help="Ticker to join with the strategy data")
+    analyze.add_argument("--file", required=True, type=Path, help="Path to the strategy CSV file")
     analyze.add_argument(
         "--interval",
         default="1d",
@@ -201,14 +198,7 @@ def main(argv: list[str] | None = None) -> None:
 
     args = _parse_args(argv)
 
-    if args.command == "load":
-        strategy = data.strategy.load_csv(args.file)
-        data.session_cache.save_strategy_report_cache(strategy)
-        print(f"Loaded strategy with {len(strategy)} rows")
-        # store strategy in a temporary location; a more complete project
-        # would persist it in memory or a cache.
-
-    elif args.command == "fetch":
+    if args.command == "fetch":
         if args.save:
             data.market_repository.clear_saved_fetch_snapshots(output_dir=FETCH_EXPORT_DIR)
 
@@ -245,7 +235,7 @@ def main(argv: list[str] | None = None) -> None:
 
     elif args.command == "analyze":
         try:
-            strategy_df = data.session_cache.resolve_analyze_strategy_df(strategy_module=data.strategy)
+            strategy_df = data.load_strategy_from_file(args.file)
             market_df = data.session_cache.resolve_analyze_market_df(
                 market_module=data.market,
                 market_data_access=data.market_data_access,
