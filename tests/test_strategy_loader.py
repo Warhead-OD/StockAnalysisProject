@@ -159,12 +159,13 @@ def test_fetch_yfinance_builds_metadata_for_persistence(monkeypatch):
     """Test that fetch builds metadata and sends both frame and metadata to persistence layer."""
 
     import yfinance as yf
+    from src.data.market_models import MarketDatasetMetadata
 
     date_index = pd.date_range("2026-01-01", periods=3, freq="D", name="Date")
     downloaded = pd.DataFrame({"Adj Close": [100.0, 101.0, 102.0]}, index=date_index)
-    observed: dict[str, object] = {}
+    observed: dict[str, pd.DataFrame | MarketDatasetMetadata] = {}
 
-    def fake_save(df, metadata):
+    def fake_save(df: pd.DataFrame, metadata: MarketDatasetMetadata):
         observed["df"] = df
         observed["metadata"] = metadata
         return Path("downloads/market/mock.parquet"), Path("downloads/meta/mock.json")
@@ -174,8 +175,11 @@ def test_fetch_yfinance_builds_metadata_for_persistence(monkeypatch):
 
     df = market.fetch_yfinance("SPY", period="5d", interval="1d")
 
-    metadata = observed["metadata"]
-    assert observed["df"].equals(df)
+    saved_df = observed.get("df")
+    metadata = observed.get("metadata")
+    assert isinstance(saved_df, pd.DataFrame)
+    assert isinstance(metadata, MarketDatasetMetadata)
+    assert saved_df.equals(df)
     assert metadata.ticker == "SPY"
     assert metadata.interval == "1d"
     assert metadata.period == "5d"
