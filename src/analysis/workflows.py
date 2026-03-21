@@ -5,6 +5,7 @@ from __future__ import annotations
 from .date_prep import normalize_strategy_market_dates
 from .strategy_refinement_models import StrategyRefinementResult, StrategyRefinementRequest
 from .strategy_refiner import refine_strategy_from_report_scaffold
+from .strategy_models import StrategyBuildRequest, StrategyBuildResult
 
 
 def run_analyze_workflow(
@@ -42,3 +43,46 @@ def run_analyze_workflow(
     )
 
     return metric_values, refinement
+
+
+def run_build_strategy_workflow(
+    *,
+    ticker: str,
+    interval: str,
+    category: str | None = None,
+    market_data_access,
+) -> StrategyBuildResult:
+    """Build strategy from fetched market data in a reusable application workflow.
+
+    Parameters:
+    -----------
+    ticker : str
+        Stock ticker symbol
+    interval : str
+        Time interval (e.g., '1d', '1h', '15m')
+    category : str | None
+        Strategy category (e.g., 'daily', 'intraday'). If None, mapped from interval.
+    market_data_access
+        Data access module with load_metadata() and load_dataset()
+
+    Returns:
+    --------
+    StrategyBuildResult
+        Generated strategy plan artifact.
+    """
+
+    from . import map_interval_to_category, trend_following_builder
+
+    # Resolve category from interval if not provided
+    resolved_category = category or map_interval_to_category(interval)
+
+    # Build request and execute builder
+    build_request = StrategyBuildRequest(
+        ticker=ticker,
+        interval=interval,
+        category=resolved_category,
+    )
+    result = trend_following_builder.build(build_request, market_data_access.load_dataset(ticker=ticker, interval=interval))
+
+    return result
+
