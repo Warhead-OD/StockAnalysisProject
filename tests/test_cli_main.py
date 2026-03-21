@@ -733,30 +733,35 @@ def test_main_analyze_runs_refinement_scaffold(
 
     monkeypatch.setattr(cli_main.data.strategy, "get_loaded", lambda: strategy_df)
     monkeypatch.setattr(cli_main.data.market, "get_loaded", lambda: market_df)
-    monkeypatch.setattr(cli_main.analysis.metrics, "compute_all", lambda _df: {"sharpe_ratio": 1.0})
 
-    observed_request: cli_main.analysis.StrategyRefinementRequest | None = None
-    observed_payload: dict[str, object] | None = None
+    observed_call = {}
 
-    def fake_refiner(*, request, strategy_report_df, market_df, strategy_payload):
-        nonlocal observed_request, observed_payload
-        observed_request = request
-        observed_payload = strategy_payload
-        return cli_main.analysis.StrategyRefinementResult.scaffold(
-            strategy_name=request.strategy_name,
-            ticker=request.ticker,
-            interval=request.interval,
-            summary="scaffold summary",
-            suggestions=["one", "two"],
-            strategy_id="trend_following_SPY_1d",
+    def fake_workflow(
+        *,
+        strategy_name,
+        ticker,
+        interval,
+        strategy_df,
+        market_df,
+        strategy_payload,
+    ):
+        observed_call["strategy_name"] = strategy_name
+        observed_call["ticker"] = ticker
+        observed_call["interval"] = interval
+        observed_call["strategy_payload"] = strategy_payload
+        return (
+            {"sharpe_ratio": 1.0},
+            cli_main.analysis.StrategyRefinementResult.scaffold(
+                strategy_name=strategy_name,
+                ticker=ticker,
+                interval=interval,
+                summary="scaffold summary",
+                suggestions=["one", "two"],
+                strategy_id="trend_following_SPY_1d",
+            ),
         )
 
-    monkeypatch.setattr(
-        cli_main.thinkscript_artifact,
-        "load_artifact_payload_optional",
-        lambda *, ticker, interval: _sample_strategy_payload(ticker=ticker, interval=interval, category="daily"),
-    )
-    monkeypatch.setattr(cli_main.analysis, "refine_strategy_from_report_scaffold", fake_refiner)
+    monkeypatch.setattr(cli_main.analysis, "run_analyze_workflow", fake_workflow)
 
     cli_main.main(["analyze", "demo-strategy", "SPY", "--interval", "1d"])
 
@@ -766,11 +771,9 @@ def test_main_analyze_runs_refinement_scaffold(
     assert "scaffold summary" in out
     assert "- one" in out
     assert "- two" in out
-    assert observed_request is not None
-    assert observed_payload is not None
-    assert observed_request.strategy_name == "demo-strategy"
-    assert observed_request.ticker == "SPY"
-    assert observed_payload["strategy_id"] == "trend_following_SPY_1d"
+    assert observed_call["strategy_name"] == "demo-strategy"
+    assert observed_call["ticker"] == "SPY"
+    assert observed_call["interval"] == "1d"
 
 
 def test_main_analyze_skips_refinement_when_artifact_load_fails(
@@ -784,19 +787,17 @@ def test_main_analyze_skips_refinement_when_artifact_load_fails(
 
     monkeypatch.setattr(cli_main.data.strategy, "get_loaded", lambda: strategy_df)
     monkeypatch.setattr(cli_main.data.market, "get_loaded", lambda: market_df)
-    monkeypatch.setattr(cli_main.analysis.metrics, "compute_all", lambda _df: {"sharpe_ratio": 0.5})
-    monkeypatch.setattr(
-        cli_main.thinkscript_artifact,
-        "load_artifact_payload_optional",
-        lambda *, ticker, interval: (_ for _ in ()).throw(ValueError("bad artifact payload")),
-    )
+
+    def fake_workflow(**kwargs):
+        raise ValueError("bad artifact payload")
+
+    monkeypatch.setattr(cli_main.analysis, "run_analyze_workflow", fake_workflow)
 
     cli_main.main(["analyze", "demo-strategy", "SPY", "--interval", "1d"])
 
     captured = capsys.readouterr()
     out = captured.out
     err = captured.err
-    assert "sharpe_ratio: 0.5000" in out
     assert "Skipped refinement scaffold: bad artifact payload" in err
 
 
