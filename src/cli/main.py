@@ -291,16 +291,14 @@ def main(argv: list[str] | None = None) -> None:
             sys.exit(1)
 
         metadata = data.market_data_access.load_metadata(ticker=args.ticker, interval=args.interval)
-        dataset = data.market_data_access.load_dataset(ticker=args.ticker, interval=args.interval)
-        category = args.category or analysis.map_interval_to_category(args.interval)
 
         try:
-            build_request = analysis.StrategyBuildRequest(
+            result = analysis.run_build_strategy_workflow(
                 ticker=args.ticker,
                 interval=args.interval,
-                category=category,
+                category=args.category,
+                market_data_access=data.market_data_access,
             )
-            result = analysis.trend_following_builder.build(build_request, dataset)
         except ValueError as exc:
             print(f"Failed to build strategy: {exc}", file=sys.stderr)
             sys.exit(1)
