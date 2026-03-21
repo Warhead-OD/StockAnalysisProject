@@ -20,7 +20,7 @@ from . import market_repository
 _loaded_strategy: pd.DataFrame | None = None
 _loaded_market: pd.DataFrame | None = None
 
-__all__ = ["strategy", "market", "market_data_access", "session_cache", "market_repository"]
+__all__ = ["strategy", "market", "market_data_access", "session_cache", "market_repository", "load_strategy_from_file"]
 
 
 def _parse_money_like_value(value: object) -> float | None:
@@ -121,6 +121,17 @@ class _StrategyModule:
         return _loaded_strategy
 
 strategy = _StrategyModule()
+
+def load_strategy_from_file(path: Path) -> pd.DataFrame:
+    """Load a strategy report CSV directly without caching it.
+    
+    Args:
+        path: Path to the strategy CSV file.
+    
+    Returns:
+        Loaded strategy data with normalized columns.
+    """
+    return strategy.load_csv(path)
 
 # Market sub‑module
 class _MarketModule:
