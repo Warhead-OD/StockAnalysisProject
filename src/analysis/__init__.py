@@ -15,7 +15,7 @@ from .date_prep import map_interval_to_category, normalize_strategy_market_dates
 from .strategy_models import StrategyBuildRequest, StrategyBuildResult
 from .strategy_refiner import refine_strategy_from_report_scaffold
 from .strategy_refinement_models import StrategyRefinementRequest, StrategyRefinementResult
-from .thinkscript_exporter import export_thinkscript, export_thinkscript_scaffold
+from .thinkscript_exporter import export_thinkscript, export_thinkscript_from_payload, export_thinkscript_scaffold
 from .thinkscript_models import ThinkScriptExportRequest, ThinkScriptExportResult
 from .workflows import (
     compute_thinkscript_artifact_weight,
@@ -43,6 +43,7 @@ __all__ = [
     "ThinkScriptExportRequest",
     "ThinkScriptExportResult",
     "export_thinkscript",
+    "export_thinkscript_from_payload",
     "export_thinkscript_scaffold",
 ]
 

@@ -198,3 +198,48 @@ def export_thinkscript(
         strategy_artifact_path=strategy_artifact_path,
         output_path=output_path,
     )
+
+
+def export_thinkscript_from_payload(
+    *,
+    strategy_payload: dict[str, object],
+    ticker: str,
+    interval: str,
+    export_mode: str = "strategy",
+    include_orders: bool = True,
+) -> ThinkScriptExportResult:
+    """Export ThinkScript from an in-memory strategy payload.
+
+    This is used by multi-ticker workflows that merge artifact payloads before rendering.
+    """
+
+    request = ThinkScriptExportRequest(
+        ticker=ticker,
+        interval=interval,
+        export_mode=export_mode,
+        include_orders=include_orders,
+    )
+    output_path = thinkscript_artifact.get_thinkscript_output_path(
+        ticker=ticker,
+        interval=interval,
+        export_mode=export_mode,
+    )
+
+    generated_at = datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    source = _build_thinkscript_source(
+        strategy_payload=strategy_payload,
+        request=request,
+        generated_at=generated_at,
+    )
+    output_path.write_text(source, encoding="utf-8")
+
+    return ThinkScriptExportResult.generated(
+        ticker=ticker,
+        interval=interval,
+        export_mode=export_mode,
+        include_orders=include_orders,
+        output_path=str(output_path),
+        strategy_id=str(strategy_payload.get("strategy_id")) if strategy_payload.get("strategy_id") else None,
+        generated_at=generated_at,
+    )

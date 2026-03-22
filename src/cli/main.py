@@ -149,7 +149,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "export-thinkscript",
         help="Export ThinkScript from a generated strategy artifact",
     )
-    export_thinkscript.add_argument("ticker", help="Ticker symbol for the strategy artifact")
+    export_thinkscript.add_argument("tickers", nargs="+", help="One or more ticker symbols for export")
     export_thinkscript.add_argument(
         "--interval",
         required=True,
@@ -311,20 +311,46 @@ def main(argv: list[str] | None = None) -> None:
 
     elif args.command == "export-thinkscript":
         try:
-            result = analysis.export_thinkscript(
-                ticker=args.ticker,
-                interval=args.interval,
-                export_mode=args.mode,
-                include_orders=not args.disable_orders,
+            if len(args.tickers) == 1:
+                result = analysis.export_thinkscript(
+                    ticker=args.tickers[0],
+                    interval=args.interval,
+                    export_mode=args.mode,
+                    include_orders=not args.disable_orders,
+                )
+            else:
+                merged_payload = analysis.run_merge_thinkscript_artifacts_workflow(
+                    tickers=args.tickers,
+                    interval=args.interval,
+                )
+                result = analysis.export_thinkscript_from_payload(
+                    strategy_payload=merged_payload,
+                    ticker="MULTI",
+                    interval=args.interval,
+                    export_mode=args.mode,
+                    include_orders=not args.disable_orders,
+                )
+                print(
+                    f"Merged strategy artifacts for {len(merged_payload.get('merged_tickers', []))}/"
+                    f"{len(args.tickers)} tickers into unified export."
+                )
+                skipped = merged_payload.get("skipped_tickers")
+                if isinstance(skipped, dict):
+                    for ticker, message in skipped.items():
+                        print(f"[{ticker}] {message}", file=sys.stderr)
+
+            if len(args.tickers) == 1:
+                display_ticker = args.tickers[0]
+            else:
+                display_ticker = "MULTI"
+
+            print(
+                f"Exported ThinkScript for {display_ticker} "
+                f"({result.interval}, mode={result.export_mode}, status={result.status})."
             )
         except (FileNotFoundError, ValueError) as exc:
             print(f"Failed to export ThinkScript: {exc}", file=sys.stderr)
             sys.exit(1)
-
-        print(
-            f"Exported ThinkScript for {result.ticker} "
-            f"({result.interval}, mode={result.export_mode}, status={result.status})."
-        )
         print(f"Saved ThinkScript artifact to {result.output_path}")
 
     else:
