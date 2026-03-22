@@ -86,3 +86,56 @@ def run_build_strategy_workflow(
 
     return result
 
+
+def run_build_strategy_multi_workflow(
+    *,
+    tickers: list[str],
+    interval: str,
+    category: str | None = None,
+    market_data_access,
+) -> dict[str, dict[str, StrategyBuildResult | str]]:
+    """Build strategies for multiple tickers in a reusable batch workflow.
+
+    Processes each ticker independently, capturing per-ticker success/error outcomes.
+    Continues processing remaining tickers even if one fails. Returns structured outcomes
+    where successful builds are StrategyBuildResult objects and failures are error message strings.
+
+    Parameters:
+    -----------
+    tickers : list[str]
+        List of stock ticker symbols to process
+    interval : str
+        Time interval (e.g., '1d', '1h', '15m'). Applied to all tickers.
+    category : str | None
+        Strategy category (e.g., 'daily', 'intraday'). If None, mapped from interval.
+        Applied to all tickers.
+    market_data_access
+        Data access module with load_metadata() and load_dataset()
+
+    Returns:
+    --------
+    dict[str, dict[str, StrategyBuildResult | str]]
+        Outcomes keyed by ticker and interval. For each (ticker, interval) pair:
+        - Success: StrategyBuildResult object
+        - Failure: Error message string describing the failure
+    """
+
+    outcomes: dict[str, dict[str, StrategyBuildResult | str]] = {}
+
+    for ticker in tickers:
+        interval_outcomes: dict[str, StrategyBuildResult | str] = {}
+        try:
+            result = run_build_strategy_workflow(
+                ticker=ticker,
+                interval=interval,
+                category=category,
+                market_data_access=market_data_access,
+            )
+            interval_outcomes[interval] = result
+        except Exception as e:
+            interval_outcomes[interval] = f"Error building strategy for {ticker}: {str(e)}"
+
+        outcomes[ticker] = interval_outcomes
+
+    return outcomes
+
