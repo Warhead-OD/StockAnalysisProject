@@ -17,7 +17,13 @@ from .strategy_refiner import refine_strategy_from_report_scaffold
 from .strategy_refinement_models import StrategyRefinementRequest, StrategyRefinementResult
 from .thinkscript_exporter import export_thinkscript, export_thinkscript_scaffold
 from .thinkscript_models import ThinkScriptExportRequest, ThinkScriptExportResult
-from .workflows import run_analyze_workflow, run_build_strategy_workflow, run_build_strategy_multi_workflow
+from .workflows import (
+    compute_thinkscript_artifact_weight,
+    run_analyze_workflow,
+    run_build_strategy_multi_workflow,
+    run_build_strategy_workflow,
+    run_merge_thinkscript_artifacts_workflow,
+)
 
 __all__ = [
     "metrics",
@@ -32,6 +38,8 @@ __all__ = [
     "run_analyze_workflow",
     "run_build_strategy_workflow",
     "run_build_strategy_multi_workflow",
+    "compute_thinkscript_artifact_weight",
+    "run_merge_thinkscript_artifacts_workflow",
     "ThinkScriptExportRequest",
     "ThinkScriptExportResult",
     "export_thinkscript",
