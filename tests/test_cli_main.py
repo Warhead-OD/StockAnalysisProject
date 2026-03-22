@@ -809,10 +809,10 @@ def test_main_analyze_skips_refinement_when_artifact_load_fails(
 def test_parse_args_export_thinkscript_command() -> None:
     """Test parsing export-thinkscript command with defaults and explicit flags."""
 
-    args = cli_main._parse_args(["export-thinkscript", "AAPL", "--interval", "1d"])
+    args = cli_main._parse_args(["export-thinkscript", "AAPL", "MSFT", "--interval", "1d"])
 
     assert args.command == "export-thinkscript"
-    assert args.ticker == "AAPL"
+    assert args.tickers == ["AAPL", "MSFT"]
     assert args.interval == "1d"
     assert args.mode == "strategy"
     assert args.disable_orders is False
@@ -881,6 +881,62 @@ def test_main_export_thinkscript_missing_artifact_exits(
     err = capsys.readouterr().err
     assert exc.value.code == 1
     assert "Failed to export ThinkScript" in err
+
+
+def test_main_export_thinkscript_multi_ticker_calls_merge_and_prints_result(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Multi-ticker export-thinkscript should merge artifacts and export a single MULTI script."""
+
+    merged_payload = {
+        "strategy_id": "trend_following_MULTI_1d",
+        "ticker": "MULTI",
+        "interval": "1d",
+        "category": "daily",
+        "status": "generated",
+        "parameters": {
+            "fast_window": 20,
+            "slow_window": 50,
+            "breakout_window": 20,
+            "atr_window": 14,
+            "stop_atr_multiplier": 1.9,
+            "take_profit_atr_multiplier": 3.2,
+        },
+        "merged_tickers": ["AAPL", "MSFT"],
+        "skipped_tickers": {"NVDA": "Strategy artifact not found for NVDA (1d)"},
+    }
+
+    fake_result = ThinkScriptExportResult.generated(
+        ticker="MULTI",
+        interval="1d",
+        export_mode="strategy",
+        include_orders=True,
+        output_path="outputs/thinkscript_MULTI_1d_strategy.txt",
+        strategy_id="trend_following_MULTI_1d",
+        generated_at="2026-03-15T00:00:00Z",
+    )
+
+    monkeypatch.setattr(
+        cli_main.analysis,
+        "run_merge_thinkscript_artifacts_workflow",
+        lambda *, tickers, interval: merged_payload,
+    )
+    monkeypatch.setattr(
+        cli_main.analysis,
+        "export_thinkscript_from_payload",
+        lambda *, strategy_payload, ticker, interval, export_mode="strategy", include_orders=True: fake_result,
+    )
+
+    cli_main.main(["export-thinkscript", "AAPL", "MSFT", "NVDA", "--interval", "1d"])
+
+    captured = capsys.readouterr()
+    out = captured.out
+    err = captured.err
+    assert "Merged strategy artifacts for 2/3 tickers into unified export." in out
+    assert "Exported ThinkScript for MULTI" in out
+    assert "thinkscript_MULTI_1d_strategy.txt" in out
+    assert "[NVDA] Strategy artifact not found for NVDA (1d)" in err
 
 
 def test_main_unknown_command_exits(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
