@@ -5,7 +5,17 @@ Purpose: enforce user-specific collaboration rules plus repository conventions f
 ## User Collaboration Rules
 
 - Deliver changes in very small, commit-sized slices.
+- Hard commit size limit: target 30-100 lines changed per commit (additions + deletions). If a slice exceeds this range, split it into additional commits.
 - Keep API code and test code in separate commits whenever feasible.
+- Enforce strict semantic commit splits for every slice. Use exactly one of these commit types per commit:
+  - feat: new user-facing or reusable functionality
+  - fix: bug fix only
+  - docs: documentation-only changes
+  - style: formatting/style-only changes with no logic changes
+  - refactor: internal code restructuring with no behavior change
+  - test: test-only changes
+  - chore: tooling/maintenance/non-feature housekeeping
+- Never mix semantic commit categories in one commit. If changes cross categories, split them into separate commits.
 - Run tests before proposing each commit.
 - After each test run, report results and pause for user approval before continuing to the next slice.
 - Provide an explicit semantic release recommendation for each slice:
