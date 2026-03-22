@@ -305,3 +305,150 @@ def test_run_build_strategy_multi_workflow_single_ticker_regression(
     assert single_outcome["NVDA"]["1h"].interval == "1h"
 
 
+def test_run_merge_thinkscript_artifacts_workflow_merges_weighted_parameters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ThinkScript merge workflow should build a MULTI payload with weighted parameters."""
+
+    payloads = {
+        "AAPL": {
+            "ticker": "AAPL",
+            "interval": "5m",
+            "category": "intraday",
+            "data_row_count": 100,
+            "parameters": {
+                "fast_window": 10,
+                "slow_window": 30,
+                "breakout_window": 12,
+                "atr_window": 10,
+                "stop_atr_multiplier": 1.2,
+                "take_profit_atr_multiplier": 2.2,
+                "trend_strength": 0.01,
+            },
+        },
+        "MSFT": {
+            "ticker": "MSFT",
+            "interval": "5m",
+            "category": "intraday",
+            "data_row_count": 400,
+            "parameters": {
+                "fast_window": 20,
+                "slow_window": 60,
+                "breakout_window": 24,
+                "atr_window": 18,
+                "stop_atr_multiplier": 2.0,
+                "take_profit_atr_multiplier": 3.8,
+                "trend_strength": 0.05,
+            },
+        },
+    }
+
+    monkeypatch.setattr(
+        workflows.thinkscript_artifact,
+        "load_artifact_payload_optional",
+        lambda *, ticker, interval: payloads.get(ticker),
+    )
+
+    merged = workflows.run_merge_thinkscript_artifacts_workflow(
+        tickers=["AAPL", "MSFT"],
+        interval="5m",
+    )
+
+    assert merged["ticker"] == "MULTI"
+    assert merged["interval"] == "5m"
+    assert merged["category"] == "intraday"
+    assert merged["merged_tickers"] == ["AAPL", "MSFT"]
+    assert merged["skipped_tickers"] == {}
+
+    weights = merged["weights"]
+    assert isinstance(weights, dict)
+    assert weights["MSFT"] > weights["AAPL"]
+    assert pytest.approx(sum(weights.values()), rel=1e-6) == 1.0
+
+    params = merged["parameters"]
+    assert isinstance(params, dict)
+    assert 10 <= params["fast_window"] <= 20
+    assert 30 <= params["slow_window"] <= 60
+    assert params["fast_window"] < params["slow_window"]
+
+
+def test_run_merge_thinkscript_artifacts_workflow_skips_missing_ticker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing artifacts should be skipped while still producing merged payload from available tickers."""
+
+    payload = {
+        "ticker": "AAPL",
+        "interval": "1d",
+        "category": "daily",
+        "data_row_count": 250,
+        "parameters": {
+            "fast_window": 20,
+            "slow_window": 50,
+            "breakout_window": 20,
+            "atr_window": 14,
+            "stop_atr_multiplier": 1.9,
+            "take_profit_atr_multiplier": 3.2,
+            "trend_strength": 0.03,
+        },
+    }
+
+    monkeypatch.setattr(
+        workflows.thinkscript_artifact,
+        "load_artifact_payload_optional",
+        lambda *, ticker, interval: payload if ticker == "AAPL" else None,
+    )
+
+    merged = workflows.run_merge_thinkscript_artifacts_workflow(
+        tickers=["AAPL", "NVDA"],
+        interval="1d",
+    )
+
+    assert merged["merged_tickers"] == ["AAPL"]
+    skipped = merged["skipped_tickers"]
+    assert isinstance(skipped, dict)
+    assert "NVDA" in skipped
+    assert "not found" in skipped["NVDA"]
+
+
+def test_run_merge_thinkscript_artifacts_workflow_rejects_category_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Artifacts with mismatched categories should fail fast for multi-ticker export."""
+
+    payloads = {
+        "AAPL": {"ticker": "AAPL", "interval": "5m", "category": "intraday", "parameters": {}},
+        "MSFT": {"ticker": "MSFT", "interval": "5m", "category": "daily", "parameters": {}},
+    }
+
+    monkeypatch.setattr(
+        workflows.thinkscript_artifact,
+        "load_artifact_payload_optional",
+        lambda *, ticker, interval: payloads.get(ticker),
+    )
+
+    with pytest.raises(ValueError, match="same strategy category"):
+        workflows.run_merge_thinkscript_artifacts_workflow(
+            tickers=["AAPL", "MSFT"],
+            interval="5m",
+        )
+
+
+def test_run_merge_thinkscript_artifacts_workflow_fails_when_all_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Workflow should fail when no ticker artifact can be loaded."""
+
+    monkeypatch.setattr(
+        workflows.thinkscript_artifact,
+        "load_artifact_payload_optional",
+        lambda *, ticker, interval: None,
+    )
+
+    with pytest.raises(ValueError, match="No strategy artifacts were found"):
+        workflows.run_merge_thinkscript_artifacts_workflow(
+            tickers=["AAPL", "MSFT"],
+            interval="1h",
+        )
+
+
