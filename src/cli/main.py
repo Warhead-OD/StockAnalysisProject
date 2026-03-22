@@ -131,7 +131,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "build-strategy",
         help="Build a strategy from previously fetched market data (scaffold)",
     )
-    build_strategy.add_argument("ticker", help="Single ticker symbol to build strategy for")
+    build_strategy.add_argument("tickers", nargs="+", help="One or more ticker symbols to build strategies for")
     build_strategy.add_argument(
         "--interval",
         required=True,
@@ -272,35 +272,42 @@ def main(argv: list[str] | None = None) -> None:
             print(f"Skipped refinement scaffold: {exc}", file=sys.stderr)
 
     elif args.command == "build-strategy":
-        if not data.market_data_access.has_dataset(ticker=args.ticker, interval=args.interval):
+        built_count = 0
+        total_count = len(args.tickers)
+
+        for ticker in args.tickers:
+            if not data.market_data_access.has_dataset(ticker=ticker, interval=args.interval):
+                print(
+                    f"[{ticker}] Cannot run build-strategy: required fetched market data was not found. "
+                    "Run fetch first for this ticker and interval.",
+                    file=sys.stderr,
+                )
+                continue
+
+            metadata = data.market_data_access.load_metadata(ticker=ticker, interval=args.interval)
+
+            try:
+                result = analysis.run_build_strategy_workflow(
+                    ticker=ticker,
+                    interval=args.interval,
+                    category=args.category,
+                    market_data_access=data.market_data_access,
+                )
+            except Exception as exc:
+                print(f"[{ticker}] Failed to build strategy: {exc}", file=sys.stderr)
+                continue
+
+            artifact_path = thinkscript_artifact.save_strategy_artifact(result)
             print(
-                "Cannot run build-strategy: required fetched market data was not found. "
-                "Run fetch first for this ticker and interval.",
-                file=sys.stderr,
+                f"Built strategy {result.strategy_id} for {metadata.ticker} "
+                f"({metadata.interval}, rows={result.data_row_count}, status={result.status})."
             )
+            print(f"Saved strategy artifact to {artifact_path}")
+            built_count += 1
+
+        print(f"Built {built_count}/{total_count} tickers")
+        if built_count != total_count:
             sys.exit(1)
-
-        metadata = data.market_data_access.load_metadata(ticker=args.ticker, interval=args.interval)
-
-        try:
-            result = analysis.run_build_strategy_workflow(
-                ticker=args.ticker,
-                interval=args.interval,
-                category=args.category,
-                market_data_access=data.market_data_access,
-            )
-        except ValueError as exc:
-            print(f"Failed to build strategy: {exc}", file=sys.stderr)
-            sys.exit(1)
-
-        artifact_path = thinkscript_artifact.save_strategy_artifact(result)
-        print(
-            f"Built strategy {result.strategy_id} for {metadata.ticker} "
-            f"({metadata.interval}, rows={result.data_row_count}, status={result.status})."
-        )
-        print(
-            f"Saved strategy artifact to {artifact_path}"
-        )
 
     elif args.command == "export-thinkscript":
         try:

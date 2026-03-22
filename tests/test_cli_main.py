@@ -308,10 +308,10 @@ def test_parse_args_fetch_multiple_tickers() -> None:
 def test_parse_args_build_strategy_command() -> None:
     """Test parsing build-strategy command arguments."""
 
-    args = cli_main._parse_args(["build-strategy", "AAPL", "--interval", "1d", "--category", "daily"])
+    args = cli_main._parse_args(["build-strategy", "AAPL", "MSFT", "--interval", "1d", "--category", "daily"])
 
     assert args.command == "build-strategy"
-    assert args.ticker == "AAPL"
+    assert args.tickers == ["AAPL", "MSFT"]
     assert args.interval == "1d"
     assert args.category == "daily"
 
@@ -334,9 +334,12 @@ def test_main_build_strategy_requires_existing_market_data(
     with pytest.raises(SystemExit) as exc:
         cli_main.main(["build-strategy", "AAPL", "--interval", "1d"])
 
-    err = capsys.readouterr().err
+    captured = capsys.readouterr()
+    err = captured.err
+    out = captured.out
     assert exc.value.code == 1
     assert "required fetched market data was not found" in err
+    assert "Built 0/1 tickers" in out
 
 
 def test_main_build_strategy_loads_dataset_and_metadata(
@@ -366,6 +369,7 @@ def test_main_build_strategy_loads_dataset_and_metadata(
     assert "Built strategy trend_following_AAPL_1d" in out
     assert "rows=80, status=generated" in out
     assert "Saved strategy artifact to" in out
+    assert "Built 1/1 tickers" in out
 
     assert len(written) == 1
     artifact_path = next(iter(written.keys()))
@@ -375,6 +379,49 @@ def test_main_build_strategy_loads_dataset_and_metadata(
     assert payload["status"] == "generated"
     assert payload["category"] == "daily"
     assert payload["rules"]["style"] == "trend-following"
+
+
+def test_main_build_strategy_multi_ticker_mixed_results(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """build-strategy should continue per ticker, emit immediate errors, and summarize totals."""
+
+    monkeypatch.setattr(
+        cli_main.data.market_data_access,
+        "has_dataset",
+        lambda **kwargs: kwargs["ticker"] == "AAPL",
+    )
+    monkeypatch.setattr(cli_main.data.market_data_access, "load_dataset", lambda **_kwargs: _sample_market_df())
+    monkeypatch.setattr(
+        cli_main.data.market_data_access,
+        "load_metadata",
+        lambda **kwargs: _sample_metadata(ticker=kwargs["ticker"], interval=kwargs["interval"]),
+    )
+
+    written: dict[str, str] = {}
+
+    def fake_write_text(self: Path, text: str, encoding: str = "utf-8") -> int:
+        written[str(self)] = text
+        return len(text)
+
+    monkeypatch.setattr(Path, "write_text", fake_write_text)
+
+    with pytest.raises(SystemExit) as exc:
+        cli_main.main(["build-strategy", "AAPL", "MSFT", "--interval", "1d", "--category", "daily"])
+
+    captured = capsys.readouterr()
+    out = captured.out
+    err = captured.err
+
+    assert exc.value.code == 1
+    assert "Built strategy trend_following_AAPL_1d" in out
+    assert "Built 1/2 tickers" in out
+    assert "[MSFT] Cannot run build-strategy: required fetched market data was not found" in err
+
+    assert len(written) == 1
+    artifact_path = next(iter(written.keys()))
+    assert artifact_path.endswith("outputs\\strategy_plan_AAPL_1d.json")
 
 
 def test_main_fetch_default_prints_first_and_last_rows(
