@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -120,12 +121,12 @@ def export_thinkscript_scaffold(
         )
 
     try:
-        payload = thinkscript_artifact.load_artifact_payload(
-            ticker=request.ticker, interval=request.interval
-        )
-    except (FileNotFoundError, ValueError) as exc:
-        # Re-raise with full path context if available
-        raise ValueError(str(exc)) from exc
+        payload = json.loads(strategy_artifact_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid strategy artifact format in {strategy_artifact_path}") from exc
+
+    if not isinstance(payload, dict):
+        raise ValueError(f"Invalid strategy artifact format in {strategy_artifact_path}")
 
     generated_at = datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
     output_path.parent.mkdir(parents=True, exist_ok=True)
