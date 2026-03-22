@@ -1,6 +1,7 @@
 # AI Stock Analysis
 
 A lightweight Python toolkit for:
+
 - Loading strategy-report CSV files
 - Fetching market data from yfinance
 - Running simple strategy metrics from the CLI
@@ -19,15 +20,10 @@ Run as a module:
 python -m src.cli.main --help
 ```
 
-### `load`
-
-```bash
-python -m src.cli.main load --file tests/StrategyReports_SPY_3426.csv
-```
-
 ### `fetch`
 
 Downloads market data from yfinance. You can choose either:
+
 - Date-range mode with `--start` and optional `--end`
 - Recent-window mode with `--period`
 
@@ -82,6 +78,7 @@ python -m src.cli.main fetch AAPL MSFT NVDA --period 5d --interval 30m --save
 - `--save`: Save fetched data to `downloads/latest_market_data_<TICKER>.csv`
 
 Output behavior:
+
 - If neither `--limit` nor `--all` is provided, the CLI prints the first 3 and last 3 rows.
 - Fetch requests are run sequentially, and each ticker request starts after the previous one completes with a random 300-500ms delay.
 - If `--save` is provided, previous `latest_market_data_*.csv` snapshots are deleted once at the start of the run, then one CSV is saved per fetched ticker.
@@ -110,15 +107,18 @@ python -m src.cli.main export-thinkscript AAPL --interval 1d --disable-orders
 ```
 
 Flags:
+
 - `ticker` (positional): single ticker symbol matching an existing strategy artifact
 - `--interval` (required): interval matching the strategy artifact
 - `--mode`: `strategy` (default) or `study`
 - `--disable-orders`: suppress `AddOrder()` calls from the output
 
 Output artifact:
+
 - `outputs/thinkscript_<TICKER>_<INTERVAL>_<MODE>.txt`
 
 Generated script contents:
+
 - Header comment block with strategy ID, ticker/interval/mode/orders flag, and generation timestamp
 - `declare upper;`
 - Six `input` declarations wired to strategy parameters (fast/slow MA windows, breakout lookback, ATR window, stop and take-profit ATR multipliers)
@@ -130,17 +130,18 @@ Generated script contents:
 ### `analyze`
 
 ```bash
-python -m src.cli.main analyze demo-strategy SPY
+python -m src.cli.main analyze demo-strategy SPY --file tests/StrategyReports_SPY_3426.csv
 ```
 
 Run `analyze` with an explicit interval when you want artifact-aware refinement suggestions:
 
 ```bash
-python -m src.cli.main analyze demo-strategy SPY --interval 1d
+python -m src.cli.main analyze demo-strategy SPY --file tests/StrategyReports_SPY_3426.csv --interval 1d
 ```
 
 Current behavior:
-- Loads currently in-memory strategy report data and market data.
+
+- Loads strategy report data from `--file` and market data from persisted market artifacts.
 - Merges on `date` and prints baseline metrics (`daily_mean_return`, `annualized_return`, `annualized_volatility`, `sharpe_ratio`).
 - Attempts to load a matching generated strategy artifact from:
   - `outputs/strategy_plan_<TICKER>_<INTERVAL>.json`
@@ -150,39 +151,49 @@ Current behavior:
   - bullet recommendations tied to artifact parameters and report behavior
 
 Analyze flags:
+
 - `strategy` (positional): strategy name label used in refinement metadata
 - `ticker` (positional): ticker symbol used for artifact resolution
+- `--file` (required): path to the strategy report CSV
 - `--interval` (optional, default `1d`): interval for locating the strategy artifact
 
 Refinement recommendation behavior:
+
 - With a matching artifact: suggestions are parameter-aware (MA windows, breakout lookback, ATR multipliers) and adjusted by report win-rate/expectancy.
 - Without an artifact: `analyze` still prints metrics and emits scaffold guidance to run `build-strategy` first.
 - If artifact payload parsing fails: metrics still print, and refinement is skipped with a non-fatal stderr warning.
 
 ### `build-strategy`
 
-Builds strategy artifacts from previously fetched market data for one ticker/interval pair.
+Builds strategy artifacts from previously fetched market data for one or more tickers with a shared interval/category.
 
 ```bash
-python -m src.cli.main build-strategy AAPL --interval 1d --category daily
+python -m src.cli.main build-strategy AAPL MSFT NVDA --interval 1d --category daily
 ```
 
 Current behavior:
-- Requires existing fetched artifacts for the selected ticker and interval.
-- If missing, exits with an error and instructs you to run `fetch` first.
-- Loads persisted dataset + metadata, builds a trend-following long-only strategy, and prints a confirmation summary.
+
+- Requires existing fetched artifacts for each selected ticker and interval.
+- Continues processing remaining tickers if one ticker is missing data or fails.
+- Prints per-ticker successes and per-ticker errors immediately.
+- Prints a final summary line as `Built X/Y tickers`.
+- Exits non-zero if any ticker fails.
+- Loads persisted dataset + metadata, builds a trend-following long-only strategy, and prints confirmation summaries.
 - Saves a deterministic machine-readable artifact file to:
   - `outputs/strategy_plan_<TICKER>_<INTERVAL>.json`
 
 Flags:
-- `ticker` (positional): single ticker symbol
+
+- `tickers` (positional): one or more ticker symbols
 - `--interval` (required): target strategy interval
 - `--category` (optional): `intraday`, `daily`, or `long-term`
 
 Validation:
+
 - If `--category` is provided, it must match the selected `--interval` group.
 
 Generated strategy artifact highlights:
+
 - `strategy_id` and generation timestamp (`generated_at_utc`)
 - selected ticker/interval/category
 - derived parameter values (moving-average windows, ATR windows/multipliers, breakout level/buffer)
@@ -191,6 +202,7 @@ Generated strategy artifact highlights:
 ## Data Normalization
 
 Fetched market data is normalized to lowercase columns where possible:
+
 - `date`, `open`, `high`, `low`, `close`, `adj_close`, `volume`
 
 This makes merges and metric pipelines more predictable.
@@ -198,6 +210,7 @@ This makes merges and metric pipelines more predictable.
 ## Storage Layout
 
 Fetched market datasets are stored in efficient machine-readable formats for downstream strategy building:
+
 - Canonical dataset files: `downloads/market/latest_market_<TICKER>_<INTERVAL>.parquet`
 - Metadata sidecar files: `downloads/meta/latest_market_<TICKER>_<INTERVAL>.json`
 
