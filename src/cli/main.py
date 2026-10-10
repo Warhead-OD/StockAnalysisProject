@@ -330,8 +330,10 @@ def main(argv: list[str] | None = None) -> None:
                     export_mode=args.mode,
                     include_orders=not args.disable_orders,
                 )
+                merged_tickers = merged_payload.get("merged_tickers", [])
+                merged_count = len(merged_tickers) if isinstance(merged_tickers, list) else 0
                 print(
-                    f"Merged strategy artifacts for {len(merged_payload.get('merged_tickers', []))}/"
+                    f"Merged strategy artifacts for {merged_count}/"
                     f"{len(args.tickers)} tickers into unified export."
                 )
                 skipped = merged_payload.get("skipped_tickers")
